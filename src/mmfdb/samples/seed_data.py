@@ -354,98 +354,14 @@ def _seed_probes(db: MFDatabase) -> None:
                 db.add_optical_property(probe_id, "ext_coeff", ext_coeff, unit="M-1 cm-1")
 
 
-def _load_spectra_sources() -> dict:
-    """Load the map from curated probes to their measured reference spectra."""
-    with open(_DATA_DIR / "curated_spectra_sources.json", "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 def _seed_measured_spectra(db: MFDatabase) -> None:
     """Give every curated probe its measured spectra, and no other.
 
-    Spectra come from the shipped reference ``spectra.db`` (the mapping and
-    the licences live in ``curated_spectra_sources.json``). A curated probe
-    with no measured counterpart carries no spectrum: a fabricated curve
-    (a Gaussian, a handful of points) would be computed from by the Förster
-    calculator as if it had been measured. Each stored spectrum records its
-    provenance as JSON in ``details``; the probe row records source,
-    source_ref and retrieval time of the reference it was taken from.
+    See :func:`mmfdb.samples.measured_spectra.attach_measured_spectra`.
     """
-    import sqlite3
+    from mmfdb.samples.measured_spectra import attach_measured_spectra
 
-    from mmfdb.store.database_resolver import _default_reference_spectra_path
-
-    config = _load_spectra_sources()
-    min_points = int(config["min_points"])
-    reference = sqlite3.connect(str(_default_reference_spectra_path()))
-    reference.row_factory = sqlite3.Row
-    try:
-        with db.conn:
-            for row in db.conn.execute(
-                "SELECT probe_id, chromophore_name FROM probes WHERE deleted_at IS NULL"
-            ).fetchall():
-                name, probe_id = row["chromophore_name"], int(row["probe_id"])
-                entry = config["probes"].get(name)
-                db.conn.execute("DELETE FROM spectra WHERE probe_id = ?", (probe_id,))
-                if entry is None:
-                    continue
-                ref = reference.execute(
-                    "SELECT probe_id, source, source_ref, retrieved_at FROM probes "
-                    "WHERE chromophore_name = ? AND deleted_at IS NULL AND source = ?",
-                    (entry["reference"], entry["source"]),
-                ).fetchone()
-                if ref is None:
-                    raise LookupError(
-                        f"reference spectra.db has no probe {entry['reference']!r} "
-                        f"from {entry['source']!r} for curated probe {name!r}"
-                    )
-                for kind, ref_kind in entry["spectra"].items():
-                    src = reference.execute(
-                        "SELECT wavelengths, intensity_values FROM spectra "
-                        "WHERE probe_id = ? AND spectrum_type = ? AND deleted_at IS NULL",
-                        (ref["probe_id"], ref_kind),
-                    ).fetchone()
-                    wl = np.frombuffer(src["wavelengths"], dtype=np.float64)
-                    inten = np.frombuffer(src["intensity_values"], dtype=np.float64)
-                    if wl.size < min_points:
-                        raise ValueError(
-                            f"{name} {kind}: {wl.size} points < {min_points}"
-                        )
-                    inten = inten / float(np.max(inten))
-                    provenance = {
-                        "source": ref["source"],
-                        "source_ref": ref["source_ref"],
-                        "retrieved_at": ref["retrieved_at"],
-                        "licence": "; ".join(
-                            config["licences"][part] for part in entry["source"].split(",")
-                        ),
-                        "reference_probe": entry["reference"],
-                        "reference_spectrum_type": ref_kind,
-                        "reference_database": "spectra.db",
-                    }
-                    if ref_kind != kind:
-                        provenance["note"] = (
-                            f"{ref_kind} spectrum used as the {kind} band shape"
-                        )
-                    db.conn.execute(
-                        "INSERT INTO spectra (probe_id, spectrum_type, wavelengths, "
-                        "intensity_values, wavelength_unit, intensity_unit, details) "
-                        "VALUES (?, ?, ?, ?, 'nm', 'normalized', ?)",
-                        (
-                            probe_id,
-                            kind,
-                            wl.tobytes(),
-                            inten.tobytes(),
-                            json.dumps(provenance, ensure_ascii=False, sort_keys=True),
-                        ),
-                    )
-                db.conn.execute(
-                    "UPDATE probes SET source = ?, source_ref = ?, retrieved_at = ? "
-                    "WHERE probe_id = ?",
-                    (ref["source"], ref["source_ref"], ref["retrieved_at"], probe_id),
-                )
-    finally:
-        reference.close()
+    attach_measured_spectra(db.conn)
 
 
 def _seed_forster_radii(db: MFDatabase) -> None:

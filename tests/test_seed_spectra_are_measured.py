@@ -64,3 +64,48 @@ def test_curated_probe_without_measurement_carries_no_spectrum():
     finally:
         conn.close()
     assert count == 0
+
+
+def test_migration_replaces_placeholders_of_an_installed_database(tmp_path):
+    """A database installed from an older seed gets measured spectra, not 3 points."""
+    import shutil
+
+    from mmfdb.repository import MFDatabase
+    from mmfdb.schema.schema import set_schema_version
+
+    path = tmp_path / "installed.db"
+    shutil.copy2(source_database_path(), path)
+    conn = sqlite3.connect(path)
+    triple = np.array([455.0, 495.0, 535.0]).tobytes()
+    conn.execute(
+        "UPDATE spectra SET wavelengths = ?, intensity_values = ?, details = 'Curated seed spectrum'",
+        (triple, triple),
+    )
+    # A spectrum a user stored since is not a placeholder and must survive.
+    conn.execute(
+        "INSERT INTO probes (chromophore_name) VALUES ('my dye')",
+    )
+    conn.execute(
+        "INSERT INTO spectra (probe_id, spectrum_type, wavelengths, intensity_values, details) "
+        "SELECT probe_id, 'emission', ?, ?, 'mine' FROM probes WHERE chromophore_name = 'my dye'",
+        (triple, triple),
+    )
+    set_schema_version(conn, 50)
+    conn.commit()
+    conn.close()
+
+    MFDatabase(path).close()
+
+    conn = sqlite3.connect(path)
+    rows = {
+        (n, t): len(w) // 8
+        for n, t, w in conn.execute(
+            "SELECT p.chromophore_name, s.spectrum_type, s.wavelengths "
+            "FROM spectra s JOIN probes p USING (probe_id)"
+        )
+    }
+    conn.close()
+    assert rows[("Alexa488", "emission")] >= MIN_POINTS
+    assert rows[("my dye", "emission")] == 3
+    assert not any(name == "2-aminopurine" for name, _ in rows)
+    assert all(n >= MIN_POINTS for (name, _), n in rows.items() if name != "my dye")

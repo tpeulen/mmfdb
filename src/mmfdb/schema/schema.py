@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-SCHEMA_VERSION = 50
+SCHEMA_VERSION = 51
 
 # Ordered migration waterfall: target_version → migration function.
 # Each function receives an open sqlite3.Connection and transforms the
@@ -2117,6 +2117,33 @@ def _migrate_v50_single_version_stamp(conn: sqlite3.Connection) -> None:
 
 
 MIGRATIONS[50] = _migrate_v50_single_version_stamp
+
+
+def _migrate_v51_drop_placeholder_spectra(conn: sqlite3.Connection) -> None:
+    """Replace the 3-point placeholder spectra of older seeds with measured ones.
+
+    Seeds before schema 51 gave every curated dye a 24-byte, 3-point spectrum,
+    so the Förster calculator computed R0 from three points. Exactly those rows
+    (24 bytes, no provenance) are deleted; a curated dye is then given its
+    measured spectra from the reference ``spectra.db`` where one exists, and
+    none where it does not. A spectrum anyone stored since is untouched.
+    """
+    conn.execute(
+        "DELETE FROM spectra WHERE length(wavelengths) = 24 "
+        "AND (details IS NULL OR details = '' OR details = 'Curated seed spectrum')"
+    )
+    from mmfdb.samples.measured_spectra import attach_measured_spectra
+
+    try:
+        attach_measured_spectra(conn, only_missing=True)
+    except FileNotFoundError:
+        logger.warning(
+            "Reference spectra.db not found; curated probes keep no spectrum "
+            "(set MMFDB_REFERENCE_SPECTRA_DB to restore the measured ones)"
+        )
+
+
+MIGRATIONS[51] = _migrate_v51_drop_placeholder_spectra
 
 
 def migrate_schema(conn: sqlite3.Connection) -> MigrationReport | None:
