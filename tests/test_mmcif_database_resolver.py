@@ -118,7 +118,7 @@ def test_packaged_seed_is_curated_and_openable():
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
         for table, minimum in (
             ("probes", 7),
-            ("spectra", 14),
+            ("spectra", 12),  # six measured dyes x absorption + emission; 2-aminopurine has none
             ("optical_properties", 27),
             ("flr_sample", 3),
             ("flr_experiment", 4),

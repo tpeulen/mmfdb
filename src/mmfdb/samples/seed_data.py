@@ -47,14 +47,6 @@ _ADDITIONAL_PROBES = [
 ]
 
 
-def _gaussian_spectrum(center_nm, fwhm_nm, wl_start=250.0, wl_end=800.0):
-    """Generate a Gaussian approximation of a spectrum (fallback)."""
-    wl = np.arange(wl_start, wl_end + 1, 1.0)
-    sigma = fwhm_nm / (2 * np.sqrt(2 * np.log(2)))
-    intensity = np.exp(-0.5 * ((wl - center_nm) / sigma) ** 2)
-    return wl, intensity
-
-
 def _overlap_integral(
     wavelength_nm: np.ndarray,
     donor_emission: np.ndarray,
@@ -127,8 +119,10 @@ def _forster_radius_angstrom(
 def seed_curated_database(db_path: Optional[str | Path] = None) -> Path:
     """Populate a sample database with curated fluorescence examples.
 
-    Imports the scraped fluorophore reference set (spectra.db) for real
-    spectral data, then seeds curated sample/entity/experiment records.
+    Seeds the curated probes with measured spectra taken from the shipped
+    reference ``spectra.db`` (see :func:`_seed_measured_spectra`), then the
+    curated sample/entity/experiment records. The reference set itself is
+    not copied into the seed; it ships beside it as ``spectra.db``.
 
     Parameters
     ----------
@@ -143,16 +137,9 @@ def seed_curated_database(db_path: Optional[str | Path] = None) -> Path:
     path = Path(db_path) if db_path is not None else source_database_path()
     db = MFDatabase(path)
     try:
-        # Import scraped reference data first (idempotent, dedup by name)
-        counts = db.import_reference_set()
-        if counts["probes"] > 0:
-            import logging
-            logging.getLogger(__name__).info(
-                "Seeded %d probes, %d spectra, %d optical properties from reference set",
-                counts["probes"], counts["spectra"], counts["optical_properties"],
-            )
         _seed_probe_types(db)
         _seed_probes(db)
+        _seed_measured_spectra(db)
         _seed_entities(db)
         _seed_conditions_and_assemblies(db)
         _seed_users_and_devices(db)
@@ -366,21 +353,99 @@ def _seed_probes(db: MFDatabase) -> None:
             if ext_coeff is not None:
                 db.add_optical_property(probe_id, "ext_coeff", ext_coeff, unit="M-1 cm-1")
 
-            # Add fallback Gaussian spectra if no spectra exist from import
-            has_abs = db.conn.execute(
-                "SELECT 1 FROM spectra WHERE probe_id = ? AND spectrum_type = 'absorption' AND deleted_at IS NULL",
-                (probe_id,),
-            ).fetchone()
-            has_em = db.conn.execute(
-                "SELECT 1 FROM spectra WHERE probe_id = ? AND spectrum_type = 'emission' AND deleted_at IS NULL",
-                (probe_id,),
-            ).fetchone()
-            if not has_abs:
-                x, y = _gaussian_spectrum(abs_max, fwhm_abs)
-                db.add_spectrum(probe_id, "absorption", x, y, details="Fallback Gaussian spectrum")
-            if not has_em:
-                x, y = _gaussian_spectrum(em_max, fwhm_em)
-                db.add_spectrum(probe_id, "emission", x, y, details="Fallback Gaussian spectrum")
+
+def _load_spectra_sources() -> dict:
+    """Load the map from curated probes to their measured reference spectra."""
+    with open(_DATA_DIR / "curated_spectra_sources.json", "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _seed_measured_spectra(db: MFDatabase) -> None:
+    """Give every curated probe its measured spectra, and no other.
+
+    Spectra come from the shipped reference ``spectra.db`` (the mapping and
+    the licences live in ``curated_spectra_sources.json``). A curated probe
+    with no measured counterpart carries no spectrum: a fabricated curve
+    (a Gaussian, a handful of points) would be computed from by the Förster
+    calculator as if it had been measured. Each stored spectrum records its
+    provenance as JSON in ``details``; the probe row records source,
+    source_ref and retrieval time of the reference it was taken from.
+    """
+    import sqlite3
+
+    from mmfdb.store.database_resolver import _default_reference_spectra_path
+
+    config = _load_spectra_sources()
+    min_points = int(config["min_points"])
+    reference = sqlite3.connect(str(_default_reference_spectra_path()))
+    reference.row_factory = sqlite3.Row
+    try:
+        with db.conn:
+            for row in db.conn.execute(
+                "SELECT probe_id, chromophore_name FROM probes WHERE deleted_at IS NULL"
+            ).fetchall():
+                name, probe_id = row["chromophore_name"], int(row["probe_id"])
+                entry = config["probes"].get(name)
+                db.conn.execute("DELETE FROM spectra WHERE probe_id = ?", (probe_id,))
+                if entry is None:
+                    continue
+                ref = reference.execute(
+                    "SELECT probe_id, source, source_ref, retrieved_at FROM probes "
+                    "WHERE chromophore_name = ? AND deleted_at IS NULL AND source = ?",
+                    (entry["reference"], entry["source"]),
+                ).fetchone()
+                if ref is None:
+                    raise LookupError(
+                        f"reference spectra.db has no probe {entry['reference']!r} "
+                        f"from {entry['source']!r} for curated probe {name!r}"
+                    )
+                for kind, ref_kind in entry["spectra"].items():
+                    src = reference.execute(
+                        "SELECT wavelengths, intensity_values FROM spectra "
+                        "WHERE probe_id = ? AND spectrum_type = ? AND deleted_at IS NULL",
+                        (ref["probe_id"], ref_kind),
+                    ).fetchone()
+                    wl = np.frombuffer(src["wavelengths"], dtype=np.float64)
+                    inten = np.frombuffer(src["intensity_values"], dtype=np.float64)
+                    if wl.size < min_points:
+                        raise ValueError(
+                            f"{name} {kind}: {wl.size} points < {min_points}"
+                        )
+                    inten = inten / float(np.max(inten))
+                    provenance = {
+                        "source": ref["source"],
+                        "source_ref": ref["source_ref"],
+                        "retrieved_at": ref["retrieved_at"],
+                        "licence": "; ".join(
+                            config["licences"][part] for part in entry["source"].split(",")
+                        ),
+                        "reference_probe": entry["reference"],
+                        "reference_spectrum_type": ref_kind,
+                        "reference_database": "spectra.db",
+                    }
+                    if ref_kind != kind:
+                        provenance["note"] = (
+                            f"{ref_kind} spectrum used as the {kind} band shape"
+                        )
+                    db.conn.execute(
+                        "INSERT INTO spectra (probe_id, spectrum_type, wavelengths, "
+                        "intensity_values, wavelength_unit, intensity_unit, details) "
+                        "VALUES (?, ?, ?, ?, 'nm', 'normalized', ?)",
+                        (
+                            probe_id,
+                            kind,
+                            wl.tobytes(),
+                            inten.tobytes(),
+                            json.dumps(provenance, ensure_ascii=False, sort_keys=True),
+                        ),
+                    )
+                db.conn.execute(
+                    "UPDATE probes SET source = ?, source_ref = ?, retrieved_at = ? "
+                    "WHERE probe_id = ?",
+                    (ref["source"], ref["source_ref"], ref["retrieved_at"], probe_id),
+                )
+    finally:
+        reference.close()
 
 
 def _seed_forster_radii(db: MFDatabase) -> None:
@@ -418,6 +483,7 @@ def _seed_forster_radii(db: MFDatabase) -> None:
         em_int = donor_spec["emission"]["intensity"]
         abs_wl = acceptor_spec["absorption"]["wavelengths"]
         abs_int = acceptor_spec["absorption"]["intensity"]
+        abs_int = abs_int / float(np.max(abs_int))  # peak-normalised; scaled by ext_coeff below
 
         # Scale absorption intensity by extinction coefficient
         acc_props = {r["property_name"]: r["property_value"] for r in db.conn.execute(

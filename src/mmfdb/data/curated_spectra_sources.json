@@ -1,0 +1,17 @@
+{
+  "_comment": "Which measured reference spectrum backs each curated probe. 'reference' names the probe in the shipped reference spectra.db (data/spectra.db); 'spectra' maps the curated spectrum type to the reference spectrum type used for it. 'excitation' standing in for 'absorption' is the conventional approximation (the shape of an excitation spectrum follows the absorption band of a single emitting species); the curve is peak-normalised and the absolute scale comes from the probe's ext_coeff. Curated probes absent here (2-aminopurine) have no measured spectrum in the reference set and therefore carry none.",
+  "min_points": 50,
+  "licences": {
+    "chroma": "Chroma Technology Corp. published fluorochrome curves; no redistribution licence stated by the provider",
+    "atto": "ATTO-TEC GmbH published dye spectra; no redistribution licence stated by the provider",
+    "photochemcad": "PhotochemCAD (Du et al. 1998, Photochem. Photobiol. 68, 141; Dixon et al. 2005, Photochem. Photobiol. 81, 212); freely distributed for research use"
+  },
+  "probes": {
+    "Alexa488":  {"reference": "Alexa Fluor 488™", "source": "chroma",  "spectra": {"absorption": "excitation", "emission": "emission"}},
+    "Alexa594":  {"reference": "Alexa Fluor 594™", "source": "chroma",  "spectra": {"absorption": "excitation", "emission": "emission"}},
+    "Cy3":       {"reference": "Cy3™",             "source": "chroma",  "spectra": {"absorption": "excitation", "emission": "emission"}},
+    "Cy5":       {"reference": "Cy5™",             "source": "chroma",  "spectra": {"absorption": "excitation", "emission": "emission"}},
+    "ATTO647N":  {"reference": "atto647n",         "source": "atto,chroma",    "spectra": {"absorption": "absorption", "emission": "emission"}},
+    "Trp":       {"reference": "L-Tryptophan",     "source": "photochemcad", "spectra": {"absorption": "absorption", "emission": "emission"}}
+  }
+}
