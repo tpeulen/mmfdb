@@ -1503,8 +1503,8 @@ def _get_probe_info(db: MFDatabase, sample_id: str) -> list[dict[str, Any]]:
         if spectra_rows:
             probe_info["spectra"] = {
                 row["spectrum_type"]: {
-                    "wavelengths": json.loads(row["wavelengths"]),
-                    "intensity_values": json.loads(row["intensity_values"]),
+                    "wavelengths": _spectrum_values(row["wavelengths"]),
+                    "intensity_values": _spectrum_values(row["intensity_values"]),
                 }
                 for row in [dict(r) for r in spectra_rows]
             }
@@ -1512,6 +1512,23 @@ def _get_probe_info(db: MFDatabase, sample_id: str) -> list[dict[str, Any]]:
         probes.append(probe_info)
 
     return probes
+
+
+def _spectrum_values(stored: Any) -> list[float]:
+    """A spectrum column as a list of floats.
+
+    ``add_spectrum`` stores the arrays as packed float64 bytes (what every other reader
+    decodes with ``np.frombuffer``); rows written by older code hold JSON text. Reading
+    the bytes with ``json.loads`` made ``json`` guess an encoding and raise, so a sample
+    with a measured spectrum could not be described or validated for export.
+    """
+    if stored is None:
+        return []
+    if isinstance(stored, (bytes, bytearray, memoryview)):
+        import numpy as np
+
+        return [float(v) for v in np.frombuffer(bytes(stored), dtype=np.float64)]
+    return [float(v) for v in json.loads(stored)]
 
 
 def _get_fret_pairs_info(db: MFDatabase, sample_id: str) -> list[dict[str, Any]]:
