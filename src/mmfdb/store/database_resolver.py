@@ -301,6 +301,7 @@ def _migrate_database(path: Path) -> None:
 
 
 def _copy_database(source_path: Path, user_path: Path) -> None:
+    user_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = user_path.with_suffix(user_path.suffix + ".tmp")
     try:
         shutil.copy2(source_path, tmp_path)
