@@ -335,22 +335,39 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
         it.flags = ["files outside measurements/, calibrations/ and the metadata files"]
         items.append(it)
     meta = old.get(METADATA_ITEM) or Item(id=METADATA_ITEM, role="metadata")
-    text = json.dumps(rec.metadata, sort_keys=True, ensure_ascii=False)
-    meta.files, meta.bytes = 0, len(text.encode())
-    meta.digest = hashlib.sha256(text.encode()).hexdigest()
-    meta.description = "title, creators, description, license and keywords the deposition carries"
     if flags is not None:
         meta.flags = list(flags.get(METADATA_ITEM, []))
     items.append(meta)
     for it in items:
         if not it.origin and rec.sources.get(it.id):
             it.origin = ", ".join(rec.sources[it.id])
-        it.errors = check_item(folder, it, rec)
+        if it is not meta:
+            it.errors = check_item(folder, it, rec)
     for gone in set(old) - {i.id for i in items}:
         rec._note("item removed", item=gone)
     rec.items = items
+    refresh_metadata_item(rec)
     rec._note("scan", items=len(items))
     return rec
+
+
+def refresh_metadata_item(rec: DepositRecord) -> Item:
+    """Bring the :data:`METADATA_ITEM` in line with :attr:`DepositRecord.metadata`.
+
+    Cheap (no file is read), so an editor calls it on every change; its
+    approval holds only while the digest of the metadata is the approved one.
+    """
+    try:
+        meta = rec.item(METADATA_ITEM)
+    except KeyError:
+        meta = Item(id=METADATA_ITEM, role="metadata")
+        rec.items.append(meta)
+    text = json.dumps(rec.metadata, sort_keys=True, ensure_ascii=False)
+    meta.files, meta.bytes = 0, len(text.encode())
+    meta.digest = hashlib.sha256(text.encode()).hexdigest()
+    meta.description = "title, creators, description, license and keywords the deposition carries"
+    meta.errors = check_item(rec.folder, meta, rec)
+    return meta
 
 
 def check_item(folder: Path, item: Item, rec: DepositRecord | None = None) -> list[str]:

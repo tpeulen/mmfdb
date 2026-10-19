@@ -23,6 +23,57 @@ def cli() -> None:
     """Review, package and upload deposition records."""
 
 
+@cli.command("new")
+@click.argument("root", type=click.Path(file_okay=False))
+@click.argument("name")
+@click.option("--title", default="", help="The Zenodo title.")
+def new_cmd(root: str, name: str, title: str) -> None:
+    """Make an empty record ROOT/NAME with a metadata template."""
+    from .compose import new_record
+
+    rec = new_record(root, name, title)
+    click.echo(f"{rec.folder}: created; add data with `add`, fill the metadata with `metadata`")
+
+
+@cli.command("add")
+@click.argument("folder", type=click.Path(exists=True, file_okay=False))
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.option("--as", "role", type=click.Choice(["measurement", "calibration"]), required=True)
+@click.option("--name", required=True, help="The item's folder name.")
+@click.option("--group", default="", help="A calibration's group (setup and day).")
+@click.option("--copy", is_flag=True, help="Copy even where a hard link is possible.")
+def add_cmd(folder: str, paths: tuple[str, ...], role: str, name: str, group: str,
+            copy: bool) -> None:
+    """Put files or folders into the record as one item (never overwrites)."""
+    from .compose import add_data
+
+    rec = _load(folder)
+    r = add_data(rec, paths, role, name, group, link=not copy)
+    click.echo(f"{r['item']}: {r['linked']} linked, {r['copied']} copied, "
+               f"{r['present']} already there")
+
+
+@cli.command("metadata")
+@click.argument("folder", type=click.Path(exists=True, file_okay=False))
+@click.option("--set", "source", type=click.Path(exists=True, dir_okay=False),
+              help="Replace the Zenodo metadata with this JSON file.")
+def metadata_cmd(folder: str, source: str | None) -> None:
+    """Show (or --set) the Zenodo metadata and what keeps it from being complete."""
+    import json
+
+    from .compose import zenodo_problems
+    from .record import refresh_metadata_item
+
+    rec = _load(folder)
+    if source:
+        rec.metadata = json.loads(Path(source).read_text(encoding="utf-8"))
+        refresh_metadata_item(rec)
+        rec.save()
+    click.echo(json.dumps(rec.metadata, indent=2, ensure_ascii=False))
+    problems = zenodo_problems(rec.metadata)
+    click.echo("complete" if not problems else "to fix:\n  " + "\n  ".join(problems))
+
+
 @cli.command("scan")
 @click.argument("folder", type=click.Path(exists=True, file_okay=False))
 def scan_cmd(folder: str) -> None:

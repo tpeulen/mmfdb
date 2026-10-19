@@ -5,6 +5,8 @@ leaves the machine::
 
     scan(folder)            -> <folder>.deposit.json: items, digests, flags
     approve / reject items  -> each decision bound to the item's content digest
+                               (the Zenodo metadata is one of them; compose.py
+                               makes a record by hand: new -> add data -> metadata)
     build_package(rec, out) -> the single archive, bound to the item content
     upload(rec, client)     -> a DRAFT, refused while anything blocks; md5 checked
     approve_publish(...)    -> bound to the package md5
@@ -23,6 +25,7 @@ from .record import (
     blockers,
     items_digest,
     origins_describer,
+    refresh_metadata_item,
     scan,
 )
 from .zenodo import GateError, ZenodoClient, compare, publish, refresh_remote, upload
@@ -38,6 +41,7 @@ __all__ = [
     "build_package",
     "compare",
     "items_digest",
+    "refresh_metadata_item",
     "origins_describer",
     "publish",
     "refresh_remote",
