@@ -2522,6 +2522,19 @@ def get_fret_pair_handler(
     return {"fret_pair": _json_row(row) if row else {}}
 
 
+
+def _forster_radius_angstrom(pair: dict) -> float:
+    """R0 for ``flr_fret_forster_radius.forster_radius``, which the dictionary keeps in Å.
+
+    ``forster_radius`` is taken as Å (the column's own name and unit);
+    ``forster_radius_nm`` as nm. Neither given: the dictionary default, 50 Å.
+    """
+    angstrom = _float_or_none(pair.get("forster_radius"))
+    if angstrom is not None:
+        return angstrom
+    nm = _float_or_none(pair.get("forster_radius_nm"))
+    return nm * 10.0 if nm is not None else 50.0
+
 def save_fret_pair_handler(
     pair: dict[str, Any] | None = None,
     fret_pair: dict[str, Any] | None = None,
@@ -2554,7 +2567,7 @@ def save_fret_pair_handler(
             sample_id,
             donor_probe_id,
             acceptor_probe_id,
-            _float_or_none(pair.get("forster_radius") or pair.get("forster_radius_nm")) or 5.0,
+            _forster_radius_angstrom(pair),
             kappa_squared=_float_or_none(pair.get("kappa_squared")),
             refractive_index=_float_or_none(pair.get("index_of_refraction") or pair.get("refractive_index")),
             details=pair.get("details"),

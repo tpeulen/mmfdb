@@ -761,7 +761,7 @@ class FretPairDefinition:
     kappa_squared : float, optional
         Orientation factor κ². Default is 2/3 ≈ 0.666667 (dynamic averaging).
     refractive_index : float, optional
-        Refractive index of the medium. Default is 1.4 (water).
+        Refractive index of the medium. Default is 1.4 (the usual value for a dye on a biomolecule; water is 1.33).
     overlap_integral : float, optional
         J(λ) spectral overlap integral, computed from spectra if available.
     """
@@ -967,6 +967,17 @@ class SampleDefinition:
                     logger.debug(f"probe[{i}].name '{probe.name}' validation: {err}")
 
 
+
+#: Prefactor giving R₀ in nm when J is in M⁻¹ cm⁻¹ nm⁴ (Lakowicz); chisurf's
+#: ``chisurf.core.fluorescence.fret.forster`` uses the same value.
+_R0_PREFACTOR_NM = 0.02108
+
+
+def _trapezoid(y: np.ndarray, x: np.ndarray) -> float:
+    """Trapezoidal integral of ``y`` over ``x`` (NumPy 1.x and 2.x)."""
+    return float(np.sum(0.5 * (y[1:] + y[:-1]) * np.diff(x)))
+
+
 def compute_forster_radius(
     donor_emission: tuple[np.ndarray, np.ndarray],
     acceptor_absorption: tuple[np.ndarray, np.ndarray],
@@ -999,7 +1010,7 @@ def compute_forster_radius(
     kappa_squared : float, optional
         Orientation factor κ². Default is 2/3 ≈ 0.666667 (dynamic averaging).
     refractive_index : float, optional
-        Refractive index of the medium. Default is 1.4 (water).
+        Refractive index of the medium. Default is 1.4 (the usual value for a dye on a biomolecule; water is 1.33).
 
     Returns
     -------
@@ -1014,17 +1025,13 @@ def compute_forster_radius(
     where F_donor is the donor emission spectrum and ε_acceptor is the
     acceptor molar extinction coefficient spectrum.
     """
-    import scipy.integrate
-
-    # Unpack spectra
-    donor_wl, donor_int = donor_emission
-    acceptor_wl, acceptor_ext = acceptor_absorption
-
-    # Convert to numpy arrays if they aren't already
-    donor_wl = np.asarray(donor_wl, dtype=float)
-    donor_int = np.asarray(donor_int, dtype=float)
-    acceptor_wl = np.asarray(acceptor_wl, dtype=float)
-    acceptor_ext = np.asarray(acceptor_ext, dtype=float)
+    # Unpack spectra; np.interp needs ascending wavelengths
+    donor_wl, donor_int = (np.asarray(a, dtype=float) for a in donor_emission)
+    acceptor_wl, acceptor_ext = (np.asarray(a, dtype=float) for a in acceptor_absorption)
+    order = np.argsort(donor_wl)
+    donor_wl, donor_int = donor_wl[order], donor_int[order]
+    order = np.argsort(acceptor_wl)
+    acceptor_wl, acceptor_ext = acceptor_wl[order], acceptor_ext[order]
 
     # Find overlapping wavelength range
     min_wl = max(np.min(donor_wl), np.min(acceptor_wl))
@@ -1034,39 +1041,24 @@ def compute_forster_radius(
         # No spectral overlap
         return 0.0, 0.0
 
-    # Interpolate both spectra onto a common wavelength grid
-    # Use a fine grid for accurate integration
+    # Both spectra linearly interpolated onto one fine grid inside the overlap.
     common_wl = np.linspace(min_wl, max_wl, 1000)
+    donor_int_common = np.interp(common_wl, donor_wl, donor_int, left=0.0, right=0.0)
+    acceptor_ext_common = np.interp(common_wl, acceptor_wl, acceptor_ext, left=0.0, right=0.0)
 
-    # Interpolate donor emission
-    from scipy.interpolate import interp1d
-    donor_interp = interp1d(donor_wl, donor_int, kind='linear', bounds_error=False, fill_value=0.0)
-    donor_int_common = donor_interp(common_wl)
-
-    # Interpolate acceptor absorption
-    acceptor_interp = interp1d(acceptor_wl, acceptor_ext, kind='linear', bounds_error=False, fill_value=0.0)
-    acceptor_ext_common = acceptor_interp(common_wl)
-
-    # Compute spectral overlap integral J(λ)
-    # J(λ) = ∫ F_donor(λ) ε_acceptor(λ) λ⁻⁴ dλ / ∫ F_donor(λ) dλ
-    # Note: The standard formula uses λ⁴ in numerator, but there are different conventions
-    # We use: J = ∫ F_donor(λ) ε_acceptor(λ) λ⁴ dλ / ∫ F_donor(λ) dλ
-    numerator_integral = scipy.integrate.trapezoid(
-        donor_int_common * acceptor_ext_common * common_wl**4, common_wl
-    )
-    denominator_integral = scipy.integrate.trapezoid(donor_int_common, common_wl)
+    # J = ∫ F_D ε_A λ⁴ dλ / ∫ F_D dλ  [M⁻¹ cm⁻¹ nm⁴]  (area-normalised donor)
+    numerator_integral = _trapezoid(donor_int_common * acceptor_ext_common * common_wl**4, common_wl)
+    denominator_integral = _trapezoid(donor_int_common, common_wl)
 
     if denominator_integral <= 0:
         return 0.0, 0.0
 
     overlap_integral = numerator_integral / denominator_integral
 
-    # Compute Förster radius R₀ in nm
-    # R₀⁶ = (9 ln10 κ² QD J) / (128 π⁵ n⁴ Nₐ) * 1e-51  (conversion factors for nm)
-    # Simplified constant for units where λ is in nm and ε in M⁻¹cm⁻¹:
-    # R₀⁶ (in nm⁶) = 8.785e-5 * κ² * QD * J / n⁴
-    constant = 8.785e-5  # nm⁶ * M * cm⁻¹
-    r6 = constant * kappa_squared * donor_quantum_yield * overlap_integral / (refractive_index**4)
+    # R₀ = 0.02108 (κ² Q_D n⁻⁴ J)^(1/6) nm for J in M⁻¹ cm⁻¹ nm⁴ (Lakowicz), so
+    # R₀⁶ = 8.79e-11 κ² Q_D n⁻⁴ J nm⁶. The constant 8.785e-5 used here before is the
+    # Ångström⁶ form: it returned R₀ in Å under a name that says nm, 10x too large.
+    r6 = (_R0_PREFACTOR_NM**6) * kappa_squared * donor_quantum_yield * overlap_integral / (refractive_index**4)
 
     if r6 <= 0:
         return 0.0, float(overlap_integral)

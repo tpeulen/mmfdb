@@ -377,7 +377,8 @@ class SampleMixin:
         probe_id_2 : int
             Second probe identifier (acceptor, stored as acceptor_probe_id).
         forster_radius : float
-            Förster radius in nanometers.
+            Förster radius in Ångström (``_flr_fret_forster_radius.forster_radius``
+            carries ``_item_units.code angstroms``; callers holding nm multiply by 10).
         kappa_squared : float, optional
             Orientation factor κ². Default is 2/3.
         refractive_index : float, optional

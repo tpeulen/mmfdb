@@ -869,7 +869,8 @@ def _insert_fret_pairs(
             sample_id,
             probe_ids[pair.probe_1_index],
             probe_ids[pair.probe_2_index],
-            forster_radius or 0.0,
+            # The definition speaks nm; the flrCIF column is Å.
+            (forster_radius or 0.0) * 10.0,
             kappa_squared=pair.kappa_squared,
             refractive_index=pair.refractive_index,
             details=f"Förster radius for {definition.name} pair {i}",
@@ -889,7 +890,7 @@ def _insert_fret_pairs(
             sample_id,
             probe_ids[0],
             probe_ids[1],
-            old_forster,
+            old_forster * 10.0,  # nm -> Å (flrCIF column unit)
             kappa_squared=old_kappa,
             refractive_index=old_refractive,
             details=f"Förster radius for {definition.name} (legacy)",
