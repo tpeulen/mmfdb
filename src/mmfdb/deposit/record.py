@@ -127,6 +127,10 @@ class Item:
     #: What a machine check found wrong (e.g. dictionary conformance). Unlike a
     #: flag, an error blocks the upload whatever the review says.
     errors: list[str] = field(default_factory=list)
+    #: A measurement's calibrations, by item id: what its container links to
+    #: (``_mmfdb_calibration``), else what the builder says. One calibration is
+    #: used by every measurement of its day and stored once.
+    uses: list[str] = field(default_factory=list)
     review: Review = field(default_factory=Review)
 
     @property
@@ -140,7 +144,8 @@ class Item:
         return {"id": self.id, "role": self.role, "group": self.group,
                 "description": self.description, "origin": self.origin, "files": self.files,
                 "bytes": self.bytes, "digest": self.digest, "flags": list(self.flags),
-                "errors": list(self.errors), "review": self.review.to_dict()}
+                "errors": list(self.errors), "uses": list(self.uses),
+                "review": self.review.to_dict()}
 
     @classmethod
     def from_dict(cls, d: dict) -> Item:
@@ -148,7 +153,8 @@ class Item:
                    description=d.get("description", ""), origin=d.get("origin", ""),
                    files=int(d.get("files", 0)), bytes=int(d.get("bytes", 0)),
                    digest=d.get("digest", ""), flags=list(d.get("flags", [])),
-                   errors=list(d.get("errors", [])), review=Review.from_dict(d.get("review")))
+                   errors=list(d.get("errors", [])), uses=list(d.get("uses", [])),
+                   review=Review.from_dict(d.get("review")))
 
 
 @dataclass
@@ -270,6 +276,39 @@ def origins_describer(folder: str | Path) -> Callable[[str], dict]:
     return describe
 
 
+def linked_calibrations(record: Path, measurement: Path) -> list[str] | None:
+    """The calibration items a measurement's container links to, or ``None``.
+
+    Read from the ``_mmfdb_calibration.<n>.path`` tags of the measurement's
+    ``.mmfdb.pto`` (relative to the container). ``None`` when there is no
+    container, no tttrlib to read it, or no links -- the builder's word stands.
+    """
+    containers = sorted(measurement.glob("*.mmfdb.pto")) if measurement.is_dir() else []
+    if not containers:
+        return None
+    try:
+        import tttrlib
+    except ImportError:
+        return None
+    out: list[str] = []
+    f = tttrlib.PtoFile()
+    if not f.open(str(containers[0])):
+        return None
+    try:
+        while True:
+            path = tttrlib.pto_tag(f, 0, f"_mmfdb_calibration.{len(out)}.path")
+            if not path:
+                break
+            target = (containers[0].parent / str(path)).resolve()
+            try:
+                out.append(target.relative_to(record.resolve()).as_posix())
+            except ValueError:
+                out.append(str(path))
+    finally:
+        f.close()
+    return out or None
+
+
 def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
          title: str = "", metadata: dict | None = None,
          flags: dict[str, list[str]] | None = None) -> DepositRecord:
@@ -324,6 +363,11 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
             it.origin = extra.get("origin", it.origin)
             it.group = extra.get("group", it.group)
             it.flags = list(extra.get("flags", it.flags))
+            it.uses = list(extra.get("uses", it.uses))
+        if role == "measurement":
+            linked = linked_calibrations(folder, folder / item_id)
+            if linked is not None:
+                it.uses = linked
         if flags is not None:
             it.flags = list(flags.get(item_id, []))
         items.append(it)

@@ -314,3 +314,32 @@ def test_a_record_made_by_hand(tmp_path: Path):
                         "calibrations/2014-08-12_hydraharp/irf", METADATA_ITEM}
     assert ids["measurements/2014-08-12_0M-urea"].origin == str(src / "run1")
     assert ids[METADATA_ITEM].errors == []
+
+
+def test_a_measurement_names_its_calibrations_from_its_container(record: Path):
+    """The container's _mmfdb_calibration links say which calibrations a measurement uses."""
+    tttrlib = pytest.importorskip("tttrlib")
+    meas = record / "measurements/2014-08-12_7.5M-urea"
+    pto = meas / "2014-08-12_7.5M-urea.mmfdb.pto"
+    pto.unlink()
+    f = tttrlib.PtoFile()
+    assert f.create(str(pto), "m")
+    tag = tttrlib.PtoTag()
+    tag.name, tag.type, tag.target = "_mmfdb_calibration.0.path", tttrlib.PtoType_Text, 0
+    tag.text = "../../calibrations/2014-08-12_pq-hydraharp/h2o-scatter-irf"
+    f.add_tag(tag)
+    assert f.commit()
+    f.close()
+    rec = scan(record)
+    assert rec.item("measurements/2014-08-12_7.5M-urea").uses == [
+        "calibrations/2014-08-12_pq-hydraharp/h2o-scatter-irf"]
+    rec.save()
+    again = DepositRecord.load(record)
+    assert again.item("measurements/2014-08-12_7.5M-urea").uses == [
+        "calibrations/2014-08-12_pq-hydraharp/h2o-scatter-irf"]
+
+
+def test_without_links_the_describer_says_what_a_measurement_uses(record: Path):
+    uses = ["calibrations/2014-08-12_pq-hydraharp/rho110"]
+    rec = scan(record, describe=lambda i: {"uses": uses} if i.startswith("measurements/") else {})
+    assert rec.item("measurements/2014-08-12_7.5M-urea").uses == uses
