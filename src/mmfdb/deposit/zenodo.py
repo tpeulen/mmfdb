@@ -107,6 +107,16 @@ class ZenodoClient:
             time.sleep(5 * (attempt + 1))
         raise AssertionError("unreachable")
 
+    def new_version(self, dep_id: int | str) -> dict:
+        """A new-version draft of the published *dep_id* (it starts with that version's files)."""
+        d = self._check(self.s.post(
+            f"{self.base}/deposit/depositions/{dep_id}/actions/newversion", headers=self._h()),
+            "new version")
+        draft = str(d.get("links", {}).get("latest_draft", "")).rstrip("/").rsplit("/", 1)[-1]
+        if not draft:
+            raise RuntimeError(f"Zenodo gave no draft for a new version of {dep_id}")
+        return self.deposition(draft)
+
     def publish(self, dep_id: int | str) -> dict:
         return self._check(self.s.post(
             f"{self.base}/deposit/depositions/{dep_id}/actions/publish", headers=self._h()),
@@ -139,34 +149,97 @@ def compare(rec: DepositRecord) -> list[str]:
     return out
 
 
-def upload(rec: DepositRecord, client: ZenodoClient, metadata: dict | None = None) -> dict:
-    """Upload the reviewed package into a draft (created when there is none).
+def metadata_digest(rec: DepositRecord) -> str:
+    """sha256 of the record's Zenodo metadata, as the review binds it."""
+    import hashlib
+    import json
 
-    Refuses (:class:`GateError`) unless :func:`blockers` is empty. A draft that
-    already holds other files keeps nothing stale: files of the same name are
-    replaced, other files are reported by :func:`compare` and left for the
-    reviewer to judge. The MD5 is compared after upload.
+    text = json.dumps(rec.metadata, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def upload_history(rec: DepositRecord) -> list[dict]:
+    """Every upload of the record, oldest first: ``rec.remote["uploads"]``, preceded by the
+    uploads only the record's log knows (made before uploads were tracked)."""
+    tracked = list(rec.remote.get("uploads", []))
+    known = {(u["deposition_id"], u["md5"]) for u in tracked}
+    older = [{"at": e["at"], "kind": "upload", "deposition_id": e.get("deposition"),
+              "name": "", "bytes": 0, "md5": e.get("md5", ""),
+              "verified": not e.get("differences")}
+             for e in rec.log if e.get("event") == "upload" and "kind" not in e
+             and (e.get("deposition"), e.get("md5")) not in known]
+    return older + tracked
+
+
+def upload_kind(rec: DepositRecord) -> str:
+    """What :func:`upload` would do now.
+
+    ``"new"`` (no deposition yet), ``"update"`` (replace the package or the
+    metadata of the unpublished draft), ``"new version"`` (the record is
+    published: a new version of it, under the same concept DOI) or
+    ``"current"`` (the draft holds exactly this package and was sent exactly
+    this metadata).
+    """
+    if not rec.remote.get("deposition_id"):
+        return "new"
+    if rec.remote.get("doi") and rec.remote.get("state") == "done":
+        return "new version"
+    last = (rec.remote.get("uploads") or [{}])[-1]
+    same_meta = last.get("metadata_digest") == metadata_digest(rec)
+    return "current" if not compare(rec) and same_meta else "update"
+
+
+def upload(rec: DepositRecord, client: ZenodoClient, metadata: dict | None = None) -> dict:
+    """Upload the reviewed package: a new draft, an update of the draft, or a new version.
+
+    Refuses (:class:`GateError`) unless :func:`blockers` is empty. The draft
+    ends up holding exactly the package -- an older package, or any other
+    file, is removed from it -- and the MD5 is compared after the upload.
+    Every upload is appended to ``rec.remote["uploads"]`` (when, which
+    deposition, what kind, the package's name, size and MD5): what was
+    uploaded is tracked, not inferred.
     """
     reasons = blockers(rec)
     if reasons:
         raise GateError("not cleared for upload:\n  " + "\n  ".join(reasons))
     if metadata is not None and metadata != rec.metadata:
         raise GateError("only the reviewed metadata is uploaded (edit it in the record, review it)")
+    kind = upload_kind(rec)
+    if kind == "current":
+        raise GateError("the draft already holds this package and metadata: nothing to upload")
     meta = rec.metadata
     dep_id = rec.remote.get("deposition_id")
-    dep = client.update_metadata(dep_id, meta) if dep_id and meta else (
-        client.deposition(dep_id) if dep_id else client.create(meta))
+    if kind == "new version":
+        previous = {k: rec.remote.get(k) for k in ("deposition_id", "doi", "published_at")}
+        rec.remote.setdefault("published", []).append(previous)
+        dep = client.new_version(dep_id)
+        rec.remote.pop("doi", None)
+        rec.remote.pop("published_at", None)
+        dep = client.update_metadata(dep["id"], meta) if meta else dep
+    elif kind == "update":
+        dep = client.update_metadata(dep_id, meta) if meta else client.deposition(dep_id)
+    else:
+        dep = client.create(meta)
     dep_id = dep["id"]
     rec.remote["deposition_id"] = dep_id
     zp = Path(rec.package["path"])
+    present = False
     for f in client.files(dep_id):
-        if f["name"] == zp.name and f["md5"] != rec.package["md5"]:
+        if f["name"] == zp.name and f["md5"] == rec.package["md5"]:
+            present = True  # a metadata-only update: the package is there already
+        else:
             client.delete_file(dep_id, f["id"])
-    client.put_file(dep["links"]["bucket"], zp)
+    if not present:
+        client.put_file(dep["links"]["bucket"], zp)
     refresh_remote(rec, client)
     diff = compare(rec)
-    rec._note("upload", deposition=dep_id, md5=rec.package["md5"], differences=diff)
-    if any(zp.name in d for d in diff):
+    rec.remote.setdefault("uploads", []).append({
+        "at": _now(), "kind": kind, "deposition_id": dep_id, "name": zp.name,
+        "bytes": rec.package.get("bytes", zp.stat().st_size), "md5": rec.package["md5"],
+        "metadata_digest": metadata_digest(rec), "package_sent": not present,
+        "verified": not diff})
+    rec._note("upload", deposition=dep_id, kind=kind, md5=rec.package["md5"], differences=diff)
+    if diff:
         raise RuntimeError(f"uploaded {zp.name} does not verify: {diff}")
     return rec.remote
 

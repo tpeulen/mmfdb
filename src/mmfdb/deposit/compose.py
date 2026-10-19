@@ -198,6 +198,13 @@ def zenodo_problems(meta: dict | None) -> list[str]:
     kw = m.get("keywords", [])
     if not isinstance(kw, list) or not all(isinstance(k, str) and k.strip() for k in kw):
         out.append("keywords must be a list of words")
+    internal = re.compile(r"(?i)\bpto\b|pto\.mfdb")
+    for key in ("title", "description", "notes"):
+        if internal.search(str(m.get(key, ""))):
+            out.append(f"{key} names the PTO container format -- an internal name; say "
+                       "'analysis container' (the file names may keep their extension)")
+    if any(internal.search(str(k)) for k in kw if isinstance(kw, list)):
+        out.append("a keyword names the PTO container format -- remove it")
     for i, r in enumerate(m.get("related_identifiers") or [], 1):
         if not isinstance(r, dict) or not r.get("identifier") or r.get("relation") not in RELATIONS:
             out.append(f"related identifier {i}: needs an identifier and a relation "

@@ -28,7 +28,8 @@ from .record import (
     refresh_metadata_item,
     scan,
 )
-from .zenodo import GateError, ZenodoClient, compare, publish, refresh_remote, upload
+from .zenodo import (GateError, ZenodoClient, compare, publish, refresh_remote, upload,
+                     upload_history, upload_kind)
 
 __all__ = [
     "SCHEMA",
@@ -47,4 +48,6 @@ __all__ = [
     "refresh_remote",
     "scan",
     "upload",
+    "upload_history",
+    "upload_kind",
 ]

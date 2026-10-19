@@ -109,17 +109,22 @@ class FakeZenodo:
             return self._b
 
     def __init__(self):
-        self.files, self.published, self.calls = {}, False, []
+        self.files, self.published, self.calls, self.id = {}, False, [], 7
 
     def _dep(self):
-        return {"id": 7, "state": "done" if self.published else "unsubmitted",
-                "submitted": self.published, "doi": "10.5281/zenodo.7" if self.published else "",
-                "links": {"bucket": "https://z/bucket/7", "html": "https://z/deposit/7"}}
+        i = self.id
+        return {"id": i, "state": "done" if self.published else "unsubmitted",
+                "submitted": self.published, "doi": f"10.5281/zenodo.{i}" if self.published else "",
+                "links": {"bucket": f"https://z/bucket/{i}", "html": f"https://z/deposit/{i}",
+                          "latest_draft": f"https://z/api/deposit/depositions/{i}"}}
 
     def post(self, url, json=None, headers=None):
         self.calls.append(("POST", url, json))
         if url.endswith("/actions/publish"):
             self.published = True
+        if url.endswith("/actions/newversion"):
+            # the new version is a draft that starts with the published version's files
+            self.id, self.published = self.id + 1, False
         return self.R(201, self._dep())
 
     def put(self, url, data=None, json=None, headers=None):
@@ -383,3 +388,103 @@ def test_without_links_the_describer_says_what_a_measurement_uses(record: Path):
     uses = ["calibrations/2014-08-12_pq-hydraharp/rho110"]
     rec = scan(record, describe=lambda i: {"uses": uses} if i.startswith("measurements/") else {})
     assert rec.item("measurements/2014-08-12_7.5M-urea").uses == uses
+
+
+
+def _cleared(record: Path, tmp_path: Path):
+    rec = scan(record)
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    return rec
+
+
+def _change(rec, record: Path, tmp_path: Path, text: bytes):
+    (record / "README.md").write_bytes(text)
+    rec = scan(record)
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    return rec
+
+
+def test_an_upload_updates_the_draft_and_is_tracked(record: Path, tmp_path: Path):
+    from mmfdb.deposit import upload_kind
+
+    fake = FakeZenodo()
+    client = ZenodoClient(token="t", session=fake)
+    rec = _cleared(record, tmp_path)
+    assert upload_kind(rec) == "new"
+    upload(rec, client)
+    rec.save()
+    assert upload_kind(rec) == "current"
+    with pytest.raises(GateError, match="already holds"):
+        upload(rec, client)
+    rec = _change(rec, record, tmp_path, b"# demo, corrected\n")
+    assert upload_kind(rec) == "update"
+    upload(rec, client)
+    assert list(fake.files) == ["t4l-demo.zip"]
+    assert hashlib.md5(fake.files["t4l-demo.zip"]).hexdigest() == rec.package["md5"]
+    assert [(u["kind"], u["deposition_id"], u["verified"]) for u in rec.remote["uploads"]] == [
+        ("new", 7, True), ("update", 7, True)]
+    assert rec.remote["uploads"][-1]["md5"] == rec.package["md5"]
+
+
+def test_a_published_record_is_updated_as_a_new_version(record: Path, tmp_path: Path):
+    from mmfdb.deposit import upload_kind
+
+    fake = FakeZenodo()
+    client = ZenodoClient(token="t", session=fake)
+    rec = _cleared(record, tmp_path)
+    upload(rec, client)
+    rec.approve_publish(by="tester")
+    publish(rec, client)
+    rec.save()
+    assert upload_kind(rec) == "new version"
+    rec = _change(rec, record, tmp_path, b"# demo v2\n")
+    upload(rec, client)
+    assert rec.remote["deposition_id"] == 8 and "doi" not in rec.remote
+    assert rec.remote["published"] == [{"deposition_id": 7, "doi": "10.5281/zenodo.7",
+                                        "published_at": rec.remote["published"][0]["published_at"]}]
+    assert rec.remote["uploads"][-1]["kind"] == "new version"
+    assert any(c[1].endswith("/7/actions/newversion") for c in fake.calls)
+
+
+def test_metadata_naming_the_pto_format_blocks():
+    from mmfdb.deposit.compose import zenodo_problems
+
+    meta = dict(META, title="T4L: raw data and burst analysis (PTO.MFDB)",
+                keywords=["smFRET", "PTO.MFDB"], description="Donor and acceptor dyes.")
+    found = zenodo_problems(meta)
+    assert any(f.startswith("title names the PTO") for f in found)
+    assert any("keyword names the PTO" in f for f in found)
+    assert not any(f.startswith("description") for f in found)  # "acceptor" is not "PTO"
+
+
+def test_uploads_made_before_tracking_come_from_the_log(record: Path, tmp_path: Path):
+    from mmfdb.deposit import upload_history
+
+    rec = _cleared(record, tmp_path)
+    rec._note("upload", deposition=5, md5="abc", differences=[])
+    (old,) = upload_history(rec)
+    assert (old["deposition_id"], old["md5"], old["verified"]) == (5, "abc", True)
+    upload(rec, ZenodoClient(token="t", session=FakeZenodo()))
+    assert [u["kind"] for u in upload_history(rec)] == ["upload", "new"]
+
+
+def test_a_metadata_change_updates_the_draft_without_resending_the_package(record, tmp_path):
+    from mmfdb.deposit import upload_kind
+    from mmfdb.deposit.record import refresh_metadata_item
+
+    fake = FakeZenodo()
+    client = ZenodoClient(token="t", session=fake)
+    rec = _cleared(record, tmp_path)
+    upload(rec, client)
+    assert upload_kind(rec) == "current"
+    rec.metadata["description"] = "Demo record, described better."
+    refresh_metadata_item(rec)
+    rec.approve("Zenodo metadata", by="tester")
+    assert upload_kind(rec) == "update"
+    puts = sum(1 for c in fake.calls if c[0] == "PUT" and "/bucket/" in c[1])
+    upload(rec, client)
+    assert sum(1 for c in fake.calls if c[0] == "PUT" and "/bucket/" in c[1]) == puts
+    assert rec.remote["uploads"][-1]["package_sent"] is False
+    assert upload_kind(rec) == "current"
