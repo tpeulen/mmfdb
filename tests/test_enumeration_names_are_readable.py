@@ -53,6 +53,8 @@ SHORT_TOKENS = {
     # file formats and encodings
     "ptu", "spc", "pto", "bur", "csv", "tsv", "cif", "png", "svg", "zip",
     "npy", "bin", "raw", "map", "mti", "md5", "url", "bh",
+    # PicoQuant T3 records: HydraHarp (.ht3), PicoHarp (.pt3)
+    "ht3", "pt3",
     # ordinary words
     "and", "by", "in", "of", "on", "per", "to", "no", "yes", "row", "run",
     "fit", "int", "kit", "tau", "cmd", "all", "set", "add", "app", "dye",

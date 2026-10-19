@@ -41,6 +41,9 @@ ROLES = ("measurement", "calibration", "metadata", "other")
 
 #: Files a record carries at its root; each is one metadata item.
 METADATA_FILES = ("README.md", "metadata.cif", "origins.json", "manifest_sha256.csv")
+#: The repository's own metadata (title, creators, description, license) is
+#: reviewed like a file: it is what the world reads first about the data.
+METADATA_ITEM = "Zenodo metadata"
 
 
 #: Files an operating system leaves in folders it shows (Finder, Explorer,
@@ -160,6 +163,8 @@ class DepositRecord:
     remote: dict = field(default_factory=dict)
     publish: Review = field(default_factory=Review)
     log: list[dict] = field(default_factory=list)
+    #: Where hand-added data came from, per item id (shown as its origin, never shipped).
+    sources: dict[str, list[str]] = field(default_factory=dict)
 
     # -- persistence -------------------------------------------------------------
 
@@ -176,7 +181,7 @@ class DepositRecord:
         return {"schema": SCHEMA, "record": self.name, "title": self.title,
                 "metadata": self.metadata, "items": [i.to_dict() for i in self.items],
                 "package": self.package, "remote": self.remote,
-                "publish": self.publish.to_dict(), "log": self.log}
+                "publish": self.publish.to_dict(), "log": self.log, "sources": self.sources}
 
     def save(self) -> Path:
         tmp = self.path.with_suffix(".json.tmp")
@@ -195,7 +200,8 @@ class DepositRecord:
         return cls(folder=folder, title=d.get("title", ""), metadata=d.get("metadata", {}),
                    items=[Item.from_dict(i) for i in d.get("items", [])],
                    package=d.get("package", {}), remote=d.get("remote", {}),
-                   publish=Review.from_dict(d.get("publish")), log=d.get("log", []))
+                   publish=Review.from_dict(d.get("publish")), log=d.get("log", []),
+                   sources=d.get("sources", {}))
 
     # -- the items ---------------------------------------------------------------
 
@@ -328,8 +334,18 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
         it.description = ", ".join(p.relative_to(folder).as_posix() for p in stray[:5])
         it.flags = ["files outside measurements/, calibrations/ and the metadata files"]
         items.append(it)
+    meta = old.get(METADATA_ITEM) or Item(id=METADATA_ITEM, role="metadata")
+    text = json.dumps(rec.metadata, sort_keys=True, ensure_ascii=False)
+    meta.files, meta.bytes = 0, len(text.encode())
+    meta.digest = hashlib.sha256(text.encode()).hexdigest()
+    meta.description = "title, creators, description, license and keywords the deposition carries"
+    if flags is not None:
+        meta.flags = list(flags.get(METADATA_ITEM, []))
+    items.append(meta)
     for it in items:
-        it.errors = check_item(folder, it)
+        if not it.origin and rec.sources.get(it.id):
+            it.origin = ", ".join(rec.sources[it.id])
+        it.errors = check_item(folder, it, rec)
     for gone in set(old) - {i.id for i in items}:
         rec._note("item removed", item=gone)
     rec.items = items
@@ -337,8 +353,16 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
     return rec
 
 
-def check_item(folder: Path, item: Item) -> list[str]:
-    """Machine checks of one item: ``metadata.cif`` must conform to the dictionaries."""
+def check_item(folder: Path, item: Item, rec: DepositRecord | None = None) -> list[str]:
+    """Machine checks of one item.
+
+    ``metadata.cif`` must conform to the dictionaries; the Zenodo metadata must
+    be a complete deposition (:func:`mmfdb.deposit.compose.zenodo_problems`).
+    """
+    if item.id == METADATA_ITEM:
+        from .compose import zenodo_problems
+
+        return zenodo_problems(rec.metadata if rec is not None else {})
     if item.id != "metadata.cif":
         return []
     from mmfdb.schema.cif_validate import validate_cif
@@ -385,8 +409,12 @@ def blockers(rec: DepositRecord, for_publish: bool = False) -> list[str]:
 
 
 def items_digest(rec: DepositRecord) -> str:
-    """One digest over all item digests: what a package was built from."""
+    """One digest over all item digests: what a package was built from.
+
+    The Zenodo metadata is not in the archive, so editing it does not ask for
+    a new package -- only for its own review.
+    """
     h = hashlib.sha256()
-    for i in sorted(rec.items, key=lambda i: i.id):
+    for i in sorted((i for i in rec.items if i.id != METADATA_ITEM), key=lambda i: i.id):
         h.update(f"{i.id}\0{i.digest}\n".encode())
     return h.hexdigest()

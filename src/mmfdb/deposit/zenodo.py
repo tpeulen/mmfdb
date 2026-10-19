@@ -150,7 +150,9 @@ def upload(rec: DepositRecord, client: ZenodoClient, metadata: dict | None = Non
     reasons = blockers(rec)
     if reasons:
         raise GateError("not cleared for upload:\n  " + "\n  ".join(reasons))
-    meta = metadata or rec.metadata
+    if metadata is not None and metadata != rec.metadata:
+        raise GateError("only the reviewed metadata is uploaded (edit it in the record, review it)")
+    meta = rec.metadata
     dep_id = rec.remote.get("deposition_id")
     dep = client.update_metadata(dep_id, meta) if dep_id and meta else (
         client.deposition(dep_id) if dep_id else client.create(meta))

@@ -110,7 +110,7 @@ def test_the_dictionaries_are_read_whole(dic):
         "_entity_poly_seq.entity_id", "_entity_poly_seq.num", "_entity_poly_seq.mon_id")
     assert dic.items["_entity_poly.nstd_linkage"].enumerations == ("no", "n", "yes", "y")
     assert "Input data or restraints" in dic.items["_ihm_external_files.content_type"].enumerations
-    for term in ("ht3", "spc-600_256", "pto"):
+    for term in ("ht3", "spc_600_256", "pto"):
         assert term in dic.items["_mmfdb_artifact.data_format"].enumerations
 
 

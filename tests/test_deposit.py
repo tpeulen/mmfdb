@@ -40,7 +40,14 @@ def record(tmp_path: Path) -> Path:
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
+    DepositRecord(folder=root, metadata=dict(META)).save()
     return root
+
+
+#: A complete deposition: the Zenodo metadata is a reviewed, checked item too.
+META = {"title": "T4L demo", "upload_type": "dataset", "description": "Demo record.",
+        "creators": [{"name": "Peulen, Thomas-Otavio", "orcid": "0000-0002-1825-0097"}],
+        "keywords": ["smFRET"], "access_right": "open", "license": "cc-by-4.0"}
 
 
 def _approve_all(rec: DepositRecord) -> None:
@@ -110,7 +117,7 @@ class FakeZenodo:
                 "links": {"bucket": "https://z/bucket/7", "html": "https://z/deposit/7"}}
 
     def post(self, url, json=None, headers=None):
-        self.calls.append(("POST", url))
+        self.calls.append(("POST", url, json))
         if url.endswith("/actions/publish"):
             self.published = True
         return self.R(201, self._dep())
@@ -151,7 +158,8 @@ def test_full_path_to_a_published_record(record: Path, tmp_path: Path):
     assert zp.name == "t4l-demo.zip" and blockers(rec) == []
     fake = FakeZenodo()
     client = ZenodoClient(token="t", session=fake)
-    upload(rec, client, metadata={"title": "demo"})
+    upload(rec, client)
+    assert fake.calls[0][2]["metadata"]["title"] == "T4L demo"
     assert compare(rec) == []
     assert fake.files["t4l-demo.zip"] == zp.read_bytes()
     with pytest.raises(GateError, match="publishing not approved"):
@@ -231,3 +239,78 @@ def test_a_nonconformant_metadata_cif_blocks_even_when_approved(record: Path, tm
     errs = rec.item("metadata.cif").errors
     assert errs and "type" in errs[0]
     assert any("metadata.cif" in b and "error" in b for b in blockers(rec))
+
+
+def test_only_the_reviewed_metadata_is_uploaded(record: Path, tmp_path: Path):
+    rec = scan(record)
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    with pytest.raises(GateError, match="reviewed metadata"):
+        upload(rec, ZenodoClient(token="t", session=FakeZenodo()), metadata={"title": "other"})
+
+
+def test_editing_the_metadata_voids_its_approval_not_the_package(record: Path, tmp_path: Path):
+    from mmfdb.deposit.record import METADATA_ITEM
+
+    rec = scan(record)
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    rec.save()
+    meta = {**rec.metadata, "title": "T4L demo, corrected"}
+    rec = scan(record, metadata=meta)
+    assert blockers(rec) == [f"{METADATA_ITEM}: changed since approval"]
+
+
+def test_incomplete_metadata_blocks_whatever_the_review_says(record: Path, tmp_path: Path):
+    from mmfdb.deposit.record import METADATA_ITEM
+
+    rec = scan(record, metadata={"title": "x", "creators": [{"name": "Thomas Peulen"}]})
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    errors = rec.item(METADATA_ITEM).errors
+    assert "description is empty" in errors
+    assert any("'Family, Given'" in e for e in errors)
+    assert blockers(rec) and blockers(rec)[0].startswith(METADATA_ITEM)
+
+
+def test_a_record_made_by_hand(tmp_path: Path):
+    """new -> add data -> metadata -> scan: the path without a build script."""
+    from mmfdb.deposit.compose import add_data, new_record, zenodo_problems
+    from mmfdb.deposit.record import METADATA_ITEM
+
+    src = tmp_path / "src"
+    (src / "run1").mkdir(parents=True)
+    (src / "run1" / "a.ht3").write_bytes(b"photons")
+    (src / "run1" / ".DS_Store").write_bytes(b"x")
+    (src / "irf.ht3").write_bytes(b"irf")
+    root = tmp_path / "records"
+    root.mkdir()
+    with pytest.raises(ValueError, match="record name"):
+        new_record(root, "My Record")
+    rec = new_record(root, "demo-by-hand", title="Demo")
+    assert zenodo_problems(rec.metadata)  # the template is not yet a deposition
+
+    r = add_data(rec, [src / "run1"], "measurement", "2014-08-12_0M-urea")
+    assert r == {"item": "measurements/2014-08-12_0M-urea", "linked": 1, "copied": 0,
+                 "present": 0}
+    placed = rec.folder / "measurements/2014-08-12_0M-urea/run1/a.ht3"
+    assert placed.stat().st_ino == (src / "run1" / "a.ht3").stat().st_ino  # no second copy
+    assert not (placed.parent / ".DS_Store").exists()
+    with pytest.raises(ValueError, match="group"):
+        add_data(rec, [src / "irf.ht3"], "calibration", "irf")
+    add_data(rec, [src / "irf.ht3"], "calibration", "irf", group="2014-08-12_hydraharp")
+    assert add_data(rec, [src / "irf.ht3"], "calibration", "irf",
+                    group="2014-08-12_hydraharp")["present"] == 1  # adding twice is harmless
+    (tmp_path / "other").mkdir()
+    (tmp_path / "other" / "irf.ht3").write_bytes(b"different")
+    with pytest.raises(FileExistsError):
+        add_data(rec, [tmp_path / "other" / "irf.ht3"], "calibration", "irf",
+                 group="2014-08-12_hydraharp")
+
+    rec.metadata.update(META)
+    rec = scan(rec.folder, metadata=rec.metadata)
+    ids = {i.id: i for i in rec.items}
+    assert set(ids) == {"measurements/2014-08-12_0M-urea",
+                        "calibrations/2014-08-12_hydraharp/irf", METADATA_ITEM}
+    assert ids["measurements/2014-08-12_0M-urea"].origin == str(src / "run1")
+    assert ids[METADATA_ITEM].errors == []

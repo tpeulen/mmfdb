@@ -4396,9 +4396,9 @@ save__mmfdb_artifact.data_format
       ht3
       pt3
       spc
-      spc-130
-      spc-600_256
-      spc-600_4096
+      spc_130
+      spc_600_256
+      spc_600_4096
       bh
       tttr
       photon_hdf5
