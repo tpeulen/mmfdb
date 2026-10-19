@@ -195,6 +195,7 @@ def test_the_token_comes_from_the_keychain_before_the_environment(monkeypatch):
     from mmfdb.deposit import credentials
 
     vault = {}
+    monkeypatch.setattr(credentials, "_KNOWN", {})
     monkeypatch.setattr(credentials._store, "store_session_token",
                         lambda h, p, u, t: vault.__setitem__((h, u), t) or True)
     monkeypatch.setattr(credentials._store, "load_session_token",
@@ -213,6 +214,45 @@ def test_the_token_comes_from_the_keychain_before_the_environment(monkeypatch):
     monkeypatch.delenv("ZENODO_TOKEN")
     with pytest.raises(RuntimeError, match="no Zenodo token"):
         ZenodoClient(base=base, session=FakeZenodo())
+
+
+def test_showing_the_token_source_never_reads_the_os_store(monkeypatch):
+    """A GUI asks ``known_token`` every frame; only ``load_token`` may launch the keychain."""
+    from mmfdb.deposit import credentials
+
+    reads = []
+    vault = {}
+
+    def load(h, p, u):
+        reads.append(h)
+        return vault.get((h, u))
+
+    monkeypatch.setattr(credentials, "_KNOWN", {})
+    monkeypatch.setattr(credentials._store, "load_session_token", load)
+    monkeypatch.setattr(credentials._store, "store_session_token",
+                        lambda h, p, u, t: vault.__setitem__((h, u), t) or True)
+    monkeypatch.setattr(credentials._store, "delete_session_token",
+                        lambda h, p, u: vault.pop((h, u), None) is not None or True)
+    monkeypatch.delenv("ZENODO_TOKEN", raising=False)
+    base = "https://sandbox.zenodo.org/api"
+    vault[("zenodo-sandbox.zenodo.org", "deposit")] = "kept"
+    for _ in range(100):
+        assert credentials.known_token(base) == ("", credentials.UNCHECKED)
+    assert reads == []
+    monkeypatch.setenv("ZENODO_TOKEN", "from-env")
+    assert credentials.known_token(base) == ("from-env", "environment")
+    assert reads == []
+    # the first real need reads the store once; afterwards the answer is known
+    assert credentials.load_token(base) == ("kept", "keychain")
+    assert credentials.known_token(base) == ("kept", "keychain")
+    assert len(reads) == 1
+    credentials.delete_token(base)
+    assert credentials.known_token(base) == ("from-env", "environment")
+    monkeypatch.delenv("ZENODO_TOKEN")
+    assert credentials.known_token(base) == ("", "")
+    credentials.store_token(base, "new")
+    assert credentials.known_token(base) == ("new", "keychain")
+    assert len(reads) == 1
 
 
 def test_browsing_the_record_in_a_file_manager_changes_nothing(record: Path, tmp_path: Path):
