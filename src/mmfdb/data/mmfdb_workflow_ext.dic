@@ -27,28 +27,33 @@ save_mmfdb_workflow
    _category.id              mmfdb_workflow
    _category.description
 ;     The declarative workflow that produced the deposit: its identity and the
-;     verbatim YAML definition, so the pipeline can be re-run. One row.
+      verbatim YAML definition, so the pipeline can be re-run. One row.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_workflow.name"
+save_
 
 save__mmfdb_workflow.name
    _item.name                "_mmfdb_workflow.name"
    _item.category_id         mmfdb_workflow
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_workflow.version
    _item.name                "_mmfdb_workflow.version"
    _item.category_id         mmfdb_workflow
    _item_type.code           int
    _item.mandatory_code      no
+save_
 
 save__mmfdb_workflow.description
    _item.name                "_mmfdb_workflow.description"
    _item.category_id         mmfdb_workflow
    _item_type.code           text
    _item.mandatory_code      no
+save_
 
 save__mmfdb_workflow.definition
    _item.name                "_mmfdb_workflow.definition"
@@ -57,12 +62,14 @@ save__mmfdb_workflow.definition
    _item.mandatory_code      no
    _item_description.description
 ;     The verbatim workflow YAML, embedded so the deposit is reproducible
-;     without any external file.
+      without any external file.
+
 ;
 
 #############
 ## CATEGORY: mmfdb_workflow_step
 #############
+save_
 
 save_mmfdb_workflow_step
    _category.id              mmfdb_workflow_step
@@ -71,36 +78,42 @@ save_mmfdb_workflow_step
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_workflow_step.step_id"
+save_
 
 save__mmfdb_workflow_step.ordinal
    _item.name                "_mmfdb_workflow_step.ordinal"
    _item.category_id         mmfdb_workflow_step
    _item_type.code           int
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_workflow_step.step_id
    _item.name                "_mmfdb_workflow_step.step_id"
    _item.category_id         mmfdb_workflow_step
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_workflow_step.operation_type
    _item.name                "_mmfdb_workflow_step.operation_type"
    _item.category_id         mmfdb_workflow_step
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_workflow_step.software_package
    _item.name                "_mmfdb_workflow_step.software_package"
    _item.category_id         mmfdb_workflow_step
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_workflow_step.software_version
    _item.name                "_mmfdb_workflow_step.software_version"
    _item.category_id         mmfdb_workflow_step
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_workflow_step.run_kind
    _item.name                "_mmfdb_workflow_step.run_kind"
@@ -111,6 +124,7 @@ save__mmfdb_workflow_step.run_kind
     _item_enumeration.value
       cmd
       python
+save_
 
 save__mmfdb_workflow_step.run
    _item.name                "_mmfdb_workflow_step.run"
@@ -119,63 +133,74 @@ save__mmfdb_workflow_step.run
    _item.mandatory_code      no
    _item_description.description
 ;     The command-line template (for a cmd step) or the module:callable target
-;     (for a python step).
+      (for a python step).
+
 ;
 
 #############
 ## CATEGORY: mmfdb_provenance_operation
 #############
+save_
 
 save_mmfdb_provenance_operation
    _category.id              mmfdb_provenance_operation
    _category.description
 ;     One recorded operation node: the exact tool invocation that produced a
-;     result, with software, version, command line, and timing.
+      result, with software, version, command line, and timing.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_provenance_operation.operation_id"
+save_
 
 save__mmfdb_provenance_operation.ordinal
    _item.name                "_mmfdb_provenance_operation.ordinal"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           int
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_provenance_operation.operation_id
    _item.name                "_mmfdb_provenance_operation.operation_id"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_provenance_operation.operation_type
    _item.name                "_mmfdb_provenance_operation.operation_type"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.software_package
    _item.name                "_mmfdb_provenance_operation.software_package"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.software_version
    _item.name                "_mmfdb_provenance_operation.software_version"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.status
    _item.name                "_mmfdb_provenance_operation.status"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           code
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.command_line
    _item.name                "_mmfdb_provenance_operation.command_line"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           text
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.parameters
    _item.name                "_mmfdb_provenance_operation.parameters"
@@ -185,18 +210,21 @@ save__mmfdb_provenance_operation.parameters
    _item_description.description
 ;     JSON object of the step parameters, recorded for exact re-run.
 ;
+save_
 
 save__mmfdb_provenance_operation.started_at
    _item.name                "_mmfdb_provenance_operation.started_at"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           yyyy-mm-dd:hh:mm
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.ended_at
    _item.name                "_mmfdb_provenance_operation.ended_at"
    _item.category_id         mmfdb_provenance_operation
    _item_type.code           yyyy-mm-dd:hh:mm
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_operation.algorithm
    _item.name                "_mmfdb_provenance_operation.algorithm"
@@ -206,6 +234,7 @@ save__mmfdb_provenance_operation.algorithm
    _item_description.description
 ;     Algorithm term of the operation (the _mmfdb_operation.algorithm value), when the operation type alone does not name it.
 ;
+save_
 
 save__mmfdb_provenance_operation.settings_hash
    _item.name                "_mmfdb_provenance_operation.settings_hash"
@@ -215,6 +244,7 @@ save__mmfdb_provenance_operation.settings_hash
    _item_description.description
 ;     Hash of the complete settings of the operation. Two operations of one type with equal hashes ran with the same settings.
 ;
+save_
 
 save__mmfdb_provenance_operation.settings_json
    _item.name                "_mmfdb_provenance_operation.settings_json"
@@ -228,6 +258,7 @@ save__mmfdb_provenance_operation.settings_json
 #############
 ## CATEGORY: mmfdb_provenance_artifact
 #############
+save_
 
 save_mmfdb_provenance_artifact
    _category.id              mmfdb_provenance_artifact
@@ -236,42 +267,49 @@ save_mmfdb_provenance_artifact
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_provenance_artifact.artifact_id"
+save_
 
 save__mmfdb_provenance_artifact.ordinal
    _item.name                "_mmfdb_provenance_artifact.ordinal"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           int
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_provenance_artifact.artifact_id
    _item.name                "_mmfdb_provenance_artifact.artifact_id"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_provenance_artifact.artifact_kind
    _item.name                "_mmfdb_provenance_artifact.artifact_kind"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_artifact.data_format
    _item.name                "_mmfdb_provenance_artifact.data_format"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_artifact.checksum
    _item.name                "_mmfdb_provenance_artifact.checksum"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_artifact.checksum_algorithm
    _item.name                "_mmfdb_provenance_artifact.checksum_algorithm"
    _item.category_id         mmfdb_provenance_artifact
    _item_type.code           code
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_artifact.row_grain
    _item.name                "_mmfdb_provenance_artifact.row_grain"
@@ -285,51 +323,60 @@ save__mmfdb_provenance_artifact.row_grain
 #############
 ## CATEGORY: mmfdb_provenance_edge
 #############
+save_
 
 save_mmfdb_provenance_edge
    _category.id              mmfdb_provenance_edge
    _category.description
 ;     A directed edge in the provenance graph (e.g. an output derived_from an
-;     input, or an artifact input_to an operation).
+      input, or an artifact input_to an operation).
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_provenance_edge.ordinal"
+save_
 
 save__mmfdb_provenance_edge.ordinal
    _item.name                "_mmfdb_provenance_edge.ordinal"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           int
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_provenance_edge.source_node_type
    _item.name                "_mmfdb_provenance_edge.source_node_type"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           code
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_edge.source_node_id
    _item.name                "_mmfdb_provenance_edge.source_node_id"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_edge.target_node_type
    _item.name                "_mmfdb_provenance_edge.target_node_type"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           code
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_edge.target_node_id
    _item.name                "_mmfdb_provenance_edge.target_node_id"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_edge.relationship_type
    _item.name                "_mmfdb_provenance_edge.relationship_type"
    _item.category_id         mmfdb_provenance_edge
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_provenance_edge.operation_id
    _item.name                "_mmfdb_provenance_edge.operation_id"
@@ -339,6 +386,7 @@ save__mmfdb_provenance_edge.operation_id
    _item_description.description
 ;     Operation that created the edge, when the edge was recorded as part of one.
 ;
+save_
 
 save__mmfdb_provenance_edge.role
    _item.name                "_mmfdb_provenance_edge.role"
@@ -348,6 +396,7 @@ save__mmfdb_provenance_edge.role
    _item_description.description
 ;     Role of the artifact in the operation, for an input_to or produced edge (for example source_file or fit_state).
 ;
+save_
 
 save__mmfdb_provenance_edge.source_row_column
    _item.name                "_mmfdb_provenance_edge.source_row_column"
@@ -357,6 +406,7 @@ save__mmfdb_provenance_edge.source_row_column
    _item_description.description
 ;     Column of the source table that holds the join key, when source and target differ in row grain.
 ;
+save_
 
 save__mmfdb_provenance_edge.target_row_column
    _item.name                "_mmfdb_provenance_edge.target_row_column"
@@ -370,15 +420,18 @@ save__mmfdb_provenance_edge.target_row_column
 #############
 ## CATEGORY: mmfdb_provenance_parameter
 #############
+save_
 
 save_mmfdb_provenance_parameter
    _category.id              mmfdb_provenance_parameter
    _category.description
 ;     One named, typed parameter value of a recorded operation: a fitted or
-;     fixed model parameter with its uncertainty and bounds.
+      fixed model parameter with its uncertainty and bounds.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_provenance_parameter.ordinal"
+save_
 
 save__mmfdb_provenance_parameter.ordinal
    _item.name                "_mmfdb_provenance_parameter.ordinal"
@@ -388,6 +441,7 @@ save__mmfdb_provenance_parameter.ordinal
    _item_description.description
 ;     Row number of the parameter in the file.
 ;
+save_
 
 save__mmfdb_provenance_parameter.parameter_id
    _item.name                "_mmfdb_provenance_parameter.parameter_id"
@@ -397,6 +451,7 @@ save__mmfdb_provenance_parameter.parameter_id
    _item_description.description
 ;     Identifier of the parameter node, which an edge between two parameters (for example a link of one parameter to another) refers to.
 ;
+save_
 
 save__mmfdb_provenance_parameter.operation_id
    _item.name                "_mmfdb_provenance_parameter.operation_id"
@@ -406,6 +461,7 @@ save__mmfdb_provenance_parameter.operation_id
    _item_description.description
 ;     Operation the parameter belongs to; matches _mmfdb_provenance_operation.operation_id.
 ;
+save_
 
 save__mmfdb_provenance_parameter.name
    _item.name                "_mmfdb_provenance_parameter.name"
@@ -415,6 +471,7 @@ save__mmfdb_provenance_parameter.name
    _item_description.description
 ;     Parameter name as the model defines it.
 ;
+save_
 
 save__mmfdb_provenance_parameter.value
    _item.name                "_mmfdb_provenance_parameter.value"
@@ -424,6 +481,7 @@ save__mmfdb_provenance_parameter.value
    _item_description.description
 ;     Value of the parameter.
 ;
+save_
 
 save__mmfdb_provenance_parameter.standard_error
    _item.name                "_mmfdb_provenance_parameter.standard_error"
@@ -433,6 +491,7 @@ save__mmfdb_provenance_parameter.standard_error
    _item_description.description
 ;     Standard error of the value, when estimated.
 ;
+save_
 
 save__mmfdb_provenance_parameter.initial_value
    _item.name                "_mmfdb_provenance_parameter.initial_value"
@@ -442,6 +501,7 @@ save__mmfdb_provenance_parameter.initial_value
    _item_description.description
 ;     Value the parameter started from.
 ;
+save_
 
 save__mmfdb_provenance_parameter.lower_bound
    _item.name                "_mmfdb_provenance_parameter.lower_bound"
@@ -451,6 +511,7 @@ save__mmfdb_provenance_parameter.lower_bound
    _item_description.description
 ;     Lower bound, in the units of the parameter.
 ;
+save_
 
 save__mmfdb_provenance_parameter.upper_bound
    _item.name                "_mmfdb_provenance_parameter.upper_bound"
@@ -460,6 +521,7 @@ save__mmfdb_provenance_parameter.upper_bound
    _item_description.description
 ;     Upper bound, in the units of the parameter.
 ;
+save_
 
 save__mmfdb_provenance_parameter.bounds_on
    _item.name                "_mmfdb_provenance_parameter.bounds_on"
@@ -469,6 +531,7 @@ save__mmfdb_provenance_parameter.bounds_on
    _item_description.description
 ;     Whether the bounds apply to the value itself or to a transformed variable.
 ;
+save_
 
 save__mmfdb_provenance_parameter.units
    _item.name                "_mmfdb_provenance_parameter.units"
@@ -478,6 +541,7 @@ save__mmfdb_provenance_parameter.units
    _item_description.description
 ;     Units of the value.
 ;
+save_
 
 save__mmfdb_provenance_parameter.parameter_type
    _item.name                "_mmfdb_provenance_parameter.parameter_type"
@@ -487,6 +551,7 @@ save__mmfdb_provenance_parameter.parameter_type
    _item_description.description
 ;     free, fixed or linked.
 ;
+save_
 
 save__mmfdb_provenance_parameter.role
    _item.name                "_mmfdb_provenance_parameter.role"
@@ -500,64 +565,75 @@ save__mmfdb_provenance_parameter.role
 #############
 ## CATEGORY: mmfdb_bundle_file
 #############
+save_
 
 save_mmfdb_bundle_file
    _category.id              mmfdb_bundle_file
    _category.description
 ;     A data file embedded in the deposit, base64-encoded, so the CIF is a
-;     single self-contained, reproducible archive. The original file is kept
-;     verbatim (never re-encoded); verify it against the recorded sha256.
+      single self-contained, reproducible archive. The original file is kept
+      verbatim (never re-encoded); verify it against the recorded sha256.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_bundle_file.ordinal"
+save_
 
 save__mmfdb_bundle_file.ordinal
    _item.name                "_mmfdb_bundle_file.ordinal"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           int
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_bundle_file.artifact_id
    _item.name                "_mmfdb_bundle_file.artifact_id"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.name
    _item.name                "_mmfdb_bundle_file.name"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_bundle_file.data_format
    _item.name                "_mmfdb_bundle_file.data_format"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.media_type
    _item.name                "_mmfdb_bundle_file.media_type"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.size_bytes
    _item.name                "_mmfdb_bundle_file.size_bytes"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           int
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.sha256
    _item.name                "_mmfdb_bundle_file.sha256"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.md5
    _item.name                "_mmfdb_bundle_file.md5"
    _item.category_id         mmfdb_bundle_file
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_file.encoding
    _item.name                "_mmfdb_bundle_file.encoding"
@@ -567,6 +643,7 @@ save__mmfdb_bundle_file.encoding
     loop_
     _item_enumeration.value
       base64
+save_
 
 save__mmfdb_bundle_file.content
    _item.name                "_mmfdb_bundle_file.content"
@@ -580,27 +657,32 @@ save__mmfdb_bundle_file.content
 #############
 ## CATEGORY: mmfdb_bundle_document
 #############
+save_
 
 save_mmfdb_bundle_document
    _category.id              mmfdb_bundle_document
    _category.description
 ;     A text document carried in the deposit (the methods report, the JSON
-;     manifest, and this dictionary), so the CIF is self-describing.
+      manifest, and this dictionary), so the CIF is self-describing.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_bundle_document.name"
+save_
 
 save__mmfdb_bundle_document.name
    _item.name                "_mmfdb_bundle_document.name"
    _item.category_id         mmfdb_bundle_document
    _item_type.code           line
    _item.mandatory_code      yes
+save_
 
 save__mmfdb_bundle_document.media_type
    _item.name                "_mmfdb_bundle_document.media_type"
    _item.category_id         mmfdb_bundle_document
    _item_type.code           line
    _item.mandatory_code      no
+save_
 
 save__mmfdb_bundle_document.content
    _item.name                "_mmfdb_bundle_document.content"
@@ -611,26 +693,29 @@ save__mmfdb_bundle_document.content
 #############
 ## CATEGORY: mmfdb_container
 #############
+save_
 
 save_mmfdb_container
    _category.id              mmfdb_container
    _category.description
 ;     What a serialised container is, written into the container itself.
-;
-;     A photon container (see the PTO.MFDB profile) carries results tagged with
-;     terms from this dictionary family.  Four things can drift independently --
-;     the container format, the profile that constrains it, the dictionary the
-;     terms come from, and the application that wrote it -- so a file that
-;     records only one of them cannot be diagnosed when it disagrees with a
-;     reader.  These items are the stamp.
-;
-;     Like the rest of this dictionary they describe a SERIALIZATION and are not
-;     database-backed: there is no mmfdb_container table, and this file is
-;     deliberately absent from MmcifDictionary.BUNDLED_DICTS so that schema
-;     reconciliation does not materialise one.
+
+      A photon container (see the PTO.MFDB profile) carries results tagged with
+      terms from this dictionary family.  Four things can drift independently --
+      the container format, the profile that constrains it, the dictionary the
+      terms come from, and the application that wrote it -- so a file that
+      records only one of them cannot be diagnosed when it disagrees with a
+      reader.  These items are the stamp.
+
+      Like the rest of this dictionary they describe a SERIALIZATION and are not
+      database-backed: there is no mmfdb_container table, and this file is
+      deliberately absent from MmcifDictionary.BUNDLED_DICTS so that schema
+      reconciliation does not materialise one.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_container.profile"
+save_
 
 save__mmfdb_container.profile
    _item.name                "_mmfdb_container.profile"
@@ -639,6 +724,8 @@ save__mmfdb_container.profile
    _item.mandatory_code      yes
    _item_description.description
 ;     Name of the profile the file conforms to, e.g. ``PTO.MFDB``.
+;
+save_
 
 save__mmfdb_container.profile_version
    _item.name                "_mmfdb_container.profile_version"
@@ -647,7 +734,9 @@ save__mmfdb_container.profile_version
    _item.mandatory_code      yes
    _item_description.description
 ;     Version of the profile that wrote the file.  A reader accepts a higher
-;     one and skips what it does not know.
+      one and skips what it does not know.
+;
+save_
 
 save__mmfdb_container.profile_read_version
    _item.name                "_mmfdb_container.profile_read_version"
@@ -656,7 +745,9 @@ save__mmfdb_container.profile_read_version
    _item.mandatory_code      yes
    _item_description.description
 ;     Minimum profile version required to read the file correctly.  A reader
-;     implementing less than this must refuse it rather than misread it.
+      implementing less than this must refuse it rather than misread it.
+;
+save_
 
 save__mmfdb_container.format
    _item.name                "_mmfdb_container.format"
@@ -665,6 +756,8 @@ save__mmfdb_container.format
    _item.mandatory_code      no
    _item_description.description
 ;     The container format underneath the profile, e.g. ``pto``.
+;
+save_
 
 save__mmfdb_container.format_version
    _item.name                "_mmfdb_container.format_version"
@@ -673,6 +766,8 @@ save__mmfdb_container.format_version
    _item.mandatory_code      no
    _item_description.description
 ;     Version of that container format.
+;
+save_
 
 save__mmfdb_container.dictionary_version
    _item.name                "_mmfdb_container.dictionary_version"
@@ -681,7 +776,9 @@ save__mmfdb_container.dictionary_version
    _item.mandatory_code      no
    _item_description.description
 ;     ``_dictionary.version`` of the MMFDB extension dictionary whose terms the
-;     file is tagged with.
+      file is tagged with.
+;
+save_
 
 save__mmfdb_container.dictionary_hash
    _item.name                "_mmfdb_container.dictionary_hash"
@@ -690,30 +787,34 @@ save__mmfdb_container.dictionary_hash
    _item.mandatory_code      no
    _item_description.description
 ;     SHA-256 of that dictionary as loaded, lowercase hexadecimal.  A version is
-;     what an author declares; this is what was actually used, and the two
-;     disagree exactly when someone edited a dictionary without bumping it.
+      what an author declares; this is what was actually used, and the two
+      disagree exactly when someone edited a dictionary without bumping it.
+;
 
 #############
 ## CATEGORY: mmfdb_column
 #############
+save_
 
 save_mmfdb_column
    _category.id              mmfdb_column
    _category.description
 ;     What one column of a serialised table is.
-;
-;     A column carries a name and a dtype, which is enough to read it and not
-;     enough to understand it: a burst duration is milliseconds, a lifetime is
-;     nanoseconds, and historically that was recorded only in the column name,
-;     when whoever wrote it remembered -- "Duration (ms)" and "Tau" sit in the
-;     same table.  These are the attributes a column description carries so it
-;     is written down instead.
-;
-;     Like the rest of this dictionary these describe a SERIALIZATION and are
-;     not database-backed: there is no mmfdb_column table.
+
+      A column carries a name and a dtype, which is enough to read it and not
+      enough to understand it: a burst duration is milliseconds, a lifetime is
+      nanoseconds, and historically that was recorded only in the column name,
+      when whoever wrote it remembered -- "Duration (ms)" and "Tau" sit in the
+      same table.  These are the attributes a column description carries so it
+      is written down instead.
+
+      Like the rest of this dictionary these describe a SERIALIZATION and are
+      not database-backed: there is no mmfdb_column table.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_column.name"
+save_
 
 save__mmfdb_column.name
    _item.name                "_mmfdb_column.name"
@@ -722,6 +823,8 @@ save__mmfdb_column.name
    _item.mandatory_code      yes
    _item_description.description
 ;     The column's name, and the key it is looked up by.
+;
+save_
 
 save__mmfdb_column.units
    _item.name                "_mmfdb_column.units"
@@ -730,17 +833,18 @@ save__mmfdb_column.units
    _item.mandatory_code      no
    _item_description.description
 ;     The physical unit of the column's values.
+
+      Spellings follow mmCIF's ITEM_UNITS_LIST wherever it has the unit, so
+      "seconds", "nanoseconds", "hertz" and "counts" are the community's words --
+      15 of the 28 here are already its own.  Its 78 codes have an odd gap: it
+      carries nanoseconds and femtoseconds but neither milliseconds nor
+      picoseconds, and no concentration, rate multiple or count-of-photons.
+      Those 13 are added here rather than invented at each call site.
+
+      "dimensionless" is for a ratio that genuinely has no unit -- an efficiency,
+      an anisotropy -- and is not the same as saying nothing, which means the
+      unit is unknown.
 ;
-;     Spellings follow mmCIF's ITEM_UNITS_LIST wherever it has the unit, so
-;     "seconds", "nanoseconds", "hertz" and "counts" are the community's words --
-;     15 of the 28 here are already its own.  Its 78 codes have an odd gap: it
-;     carries nanoseconds and femtoseconds but neither milliseconds nor
-;     picoseconds, and no concentration, rate multiple or count-of-photons.
-;     Those 13 are added here rather than invented at each call site.
-;
-;     "dimensionless" is for a ratio that genuinely has no unit -- an efficiency,
-;     an anisotropy -- and is not the same as saying nothing, which means the
-;     unit is unknown.
     loop_
     _item_enumeration.value
       hours
@@ -771,6 +875,7 @@ save__mmfdb_column.units
       nanomolar
       picomolar
       dimensionless
+save_
 
 save__mmfdb_column.item
    _item.name                "_mmfdb_column.item"
@@ -779,7 +884,9 @@ save__mmfdb_column.item
    _item.mandatory_code      no
    _item_description.description
 ;     The mmCIF item this column corresponds to, when there is one, so a table
-;     can be projected onto the dictionary rather than matched by name.
+      can be projected onto the dictionary rather than matched by name.
+;
+save_
 
 save__mmfdb_column.description
    _item.name                "_mmfdb_column.description"
@@ -792,29 +899,33 @@ save__mmfdb_column.description
 #############
 ## CATEGORY: mmfdb_units
 #############
+;
+save_
 
 save_mmfdb_units
    _category.id              mmfdb_units
    _category.description
 ;     One row per unit: its code, how it is written for a person, and what it
-;     is in SI.
-;
-;     mmCIF's ITEM_UNITS_LIST gives codes and prose and nothing else, so every
-;     consumer that wanted to *show* a unit invented its own abbreviation and
-;     every consumer that wanted to *convert* one invented its own factor.  In
-;     ChiSurf alone that produced three in-band conventions for saying the same
-;     thing -- "Duration (ms)" in a burst table, "Name | unit" in an expression
-;     column header, and bare dictionaries of factors in the DEER and FCS
-;     readers -- none of which agreed on spelling.
-;
-;     This is the one table.  A display layer reads `symbol`; a converter reads
-;     `si_factor` and `si_unit`; nothing parses a unit back out of a name.
-;
-;     Serialization vocabulary, like the rest of this dictionary: no table is
-;     materialised for it.
+      is in SI.
+
+      mmCIF's ITEM_UNITS_LIST gives codes and prose and nothing else, so every
+      consumer that wanted to *show* a unit invented its own abbreviation and
+      every consumer that wanted to *convert* one invented its own factor.  In
+      ChiSurf alone that produced three in-band conventions for saying the same
+      thing -- "Duration (ms)" in a burst table, "Name | unit" in an expression
+      column header, and bare dictionaries of factors in the DEER and FCS
+      readers -- none of which agreed on spelling.
+
+      This is the one table.  A display layer reads `symbol`; a converter reads
+      `si_factor` and `si_unit`; nothing parses a unit back out of a name.
+
+      Serialization vocabulary, like the rest of this dictionary: no table is
+      materialised for it.
+
 ;
    _category.mandatory_code  no
    _category_key.name        "_mmfdb_units.code"
+save_
 
 save__mmfdb_units.code
    _item.name                "_mmfdb_units.code"
@@ -823,7 +934,9 @@ save__mmfdb_units.code
    _item.mandatory_code      yes
    _item_description.description
 ;     The canonical code, as used by _mmfdb_column.units and _item_units.code.
-;     Follows ITEM_UNITS_LIST where that has the unit.
+      Follows ITEM_UNITS_LIST where that has the unit.
+;
+save_
 
 save__mmfdb_units.symbol
    _item.name                "_mmfdb_units.symbol"
@@ -832,8 +945,10 @@ save__mmfdb_units.symbol
    _item.mandatory_code      yes
    _item_description.description
 ;     How the unit is written for a person: "ns", "kHz", "ms".  This is what an
-;     axis label or a table header shows, and having it here is what stops each
-;     display inventing its own.
+      axis label or a table header shows, and having it here is what stops each
+      display inventing its own.
+;
+save_
 
 save__mmfdb_units.si_factor
    _item.name                "_mmfdb_units.si_factor"
@@ -842,7 +957,9 @@ save__mmfdb_units.si_factor
    _item.mandatory_code      no
    _item_description.description
 ;     Multiply a value in this unit by this to get _mmfdb_units.si_unit.
-;     Absent for a unit that is not a scaled SI quantity.
+      Absent for a unit that is not a scaled SI quantity.
+;
+save_
 
 save__mmfdb_units.si_unit
    _item.name                "_mmfdb_units.si_unit"
@@ -851,6 +968,7 @@ save__mmfdb_units.si_unit
    _item.mandatory_code      no
    _item_description.description
 ;     The SI (or SI-derived) unit _mmfdb_units.si_factor converts to.
+;
 
 save_
 

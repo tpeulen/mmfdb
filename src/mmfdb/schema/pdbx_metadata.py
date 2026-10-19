@@ -267,16 +267,37 @@ class MmcifDictionary:
         # gzip.open transparently decompresses, plain .dic is read directly.
         opener = gzip.open if path.suffix == ".gz" else open
         with opener(path, "rt", encoding="utf-8") as f:
+            in_text = False
+            text_lines: List[str] = []
             for line in f:
                 line = line.rstrip("\n\r")
                 stripped = line.strip()
-                
-                if not stripped:
+
+                # A ';' text field runs from a ';' in column 0 to the next line
+                # that starts with ';' (the CIF rule), whatever the lines in
+                # between look like. Collected whole and handed on as one
+                # ``;text;`` line, the form the branches below already read --
+                # they used to see only lines that themselves began with ';',
+                # so a correctly written multi-line description was truncated.
+                if in_text:
+                    if line.startswith(";"):
+                        in_text = False
+                        text = " ".join(t for t in text_lines if t)
+                        line = stripped = ";" + text + ";"
+                    else:
+                        text_lines.append(stripped)
+                        continue
+                elif line.startswith(";"):
+                    in_text = True
+                    text_lines = [stripped[1:].strip()]
                     continue
-                
+
+                if not stripped or stripped.startswith("#"):
+                    continue
+
                 if collecting_category_description:
                     if stripped.startswith(";"):
-                        text = stripped[1:].strip()
+                        text = stripped[1:].strip().removesuffix(";").strip()
                         if text:
                             category_description = (category_description + " " + text).strip()
                         continue
@@ -372,6 +393,10 @@ class MmcifDictionary:
                     continue
 
                 if not current_save.startswith("_"):
+                    if in_loop and loop_data and stripped.startswith("_"):
+                        in_loop = False
+                        loop_tags = []
+                        loop_data = []
                     if stripped.startswith("_category_key.name"):
                         category_key = self._extract_value(stripped)
                     elif stripped.startswith("_category.mandatory_code"):
@@ -388,13 +413,29 @@ class MmcifDictionary:
                         loop_data = []
                         continue
                     elif in_loop:
-                        if stripped.startswith("_"):
-                            loop_tags.append(stripped.strip())
+                        if stripped.startswith("_") and not loop_data:
+                            # mmcif_std.dic puts the first value on the line of
+                            # the last tag: the tokens after the tag are data.
+                            head, *rest = self._split_row(stripped)
+                            loop_tags.append(head)
+                            if rest:
+                                loop_data.append(rest)
                         else:
-                            loop_data.append(stripped.split())
+                            loop_data.append(self._loop_row(stripped))
                         continue
                     continue
                 
+                if in_loop and loop_data and stripped.startswith("_") \
+                        and not stripped.startswith("_item.name"):
+                    # CIF: a tag after loop data ends the loop. Apply what the
+                    # loop said to the item and read this tag as a tag.
+                    if current_item is not None:
+                        self._process_loop_data(current_save, current_item, loop_tags,
+                                                loop_data, register=False)
+                    in_loop = False
+                    loop_tags = []
+                    loop_data = []
+
                 if stripped.startswith("_item.name"):
                     if in_loop and current_item and loop_tags:
                         self._process_loop_data(current_save, current_item, loop_tags, loop_data)
@@ -451,7 +492,13 @@ class MmcifDictionary:
                     # If we have a pending description but no current item yet,
                     # we'll apply it when the item is created
                     continue
-                
+
+                elif in_loop and loop_tags and stripped.startswith(";"):
+                    # A text field inside a loop is one of its values (an
+                    # enumeration detail), not the item's description.
+                    loop_data.append(self._loop_row(stripped))
+                    continue
+
                 elif stripped.startswith(";"):
                     if stripped.endswith(";"):
                         pending_descriptions.append(stripped[1:-1].strip())
@@ -484,10 +531,13 @@ class MmcifDictionary:
                     loop_data = []
                     continue
                 elif in_loop:
-                    if stripped.startswith("_"):
-                        loop_tags.append(stripped.strip())
+                    if stripped.startswith("_") and not loop_data:
+                        head, *rest = self._split_row(stripped)
+                        loop_tags.append(head)
+                        if rest:
+                            loop_data.append(rest)
                     else:
-                        loop_data.append(stripped.split())
+                        loop_data.append(self._loop_row(stripped))
                     continue
             
             if in_loop and current_item and loop_tags:
@@ -591,10 +641,29 @@ class MmcifDictionary:
         existing.enum_details.update(incoming.enum_details)
         return existing
 
+    def _loop_row(self, stripped: str) -> List[str]:
+        """The values of one loop line: quotes honoured, a joined text field kept whole."""
+        if stripped.startswith(";") and stripped.endswith(";") and len(stripped) > 1:
+            return [stripped[1:-1].strip()]
+        return self._split_row(stripped)
+
     def _process_loop_data(self, current_save: str, current_item: DictItem, 
-                          loop_tags: List[str], loop_data: List[List[str]]) -> None:
-        """Process loop_ data block."""
-        if not current_item or not loop_tags or not loop_data:
+                          loop_tags: List[str], loop_data: List[List[str]],
+                          register: bool = True) -> None:
+        """Process loop_ data block (and register the item unless *register* is False)."""
+        if not current_item:
+            return
+        # A row may span lines (a value, then its detail on the next line):
+        # regroup the values by the number of columns when they divide evenly.
+        flat = [v for row in loop_data for v in row]
+        if loop_tags and flat and len(flat) % len(loop_tags) == 0:
+            n = len(loop_tags)
+            loop_data = [flat[k:k + n] for k in range(0, len(flat), n)]
+        if not loop_tags or not loop_data:
+            # A loop of text-field values only (``_item_examples.case``) has no
+            # row data for us; the item it belongs to is still an item.
+            if register:
+                self._register_item(current_save, current_item)
             return
         
         enum_value_idx = None
@@ -633,7 +702,8 @@ class MmcifDictionary:
                     if val:
                         current_item.child = val
         
-        self._register_item(current_save, current_item)
+        if register:
+            self._register_item(current_save, current_item)
 
     @classmethod
     def _resolve_dic(cls, fname: str) -> Path:
@@ -779,14 +849,17 @@ class MmcifDictionary:
         out: List[str] = []
         token = ""
         quote = ""
-        for ch in line:
+        n = len(line)
+        for i, ch in enumerate(line):
             if quote:
-                if ch == quote:
+                # CIF: a quote closes the value only when whitespace (or the
+                # end of the line) follows -- 'abbreviation for "no"' is one value.
+                if ch == quote and (i + 1 == n or line[i + 1].isspace()):
                     out.append(token)
                     token, quote = "", ""
                 else:
                     token += ch
-            elif ch in "'\"":
+            elif ch in "'\"" and not token:
                 quote = ch
             elif ch.isspace():
                 if token:
