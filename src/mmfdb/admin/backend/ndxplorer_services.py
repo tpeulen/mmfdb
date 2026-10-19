@@ -58,8 +58,8 @@ def register_ndxplorer_services(dispatcher: Any, *, db_path: str = "") -> None:
         Service dispatcher exposing a ``register`` method.
     """
     for name, handler in {
-        "ndxplorer.load_burst_product": load_burst_product_handler,
-        "ndxplorer.record_analysis": record_analysis_handler,
+        "mmfdb.burst_product.load": load_burst_product_handler,
+        "mmfdb.analysis.record": record_analysis_handler,
     }.items():
         dispatcher.register(name, _authenticated(handler))
 
