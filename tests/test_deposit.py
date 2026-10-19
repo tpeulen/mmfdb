@@ -205,3 +205,19 @@ def test_the_token_comes_from_the_keychain_before_the_environment(monkeypatch):
     monkeypatch.delenv("ZENODO_TOKEN")
     with pytest.raises(RuntimeError, match="no Zenodo token"):
         ZenodoClient(base=base, session=FakeZenodo())
+
+
+def test_browsing_the_record_in_a_file_manager_changes_nothing(record: Path, tmp_path: Path):
+    rec = scan(record)
+    _approve_all(rec)
+    rec.save()
+    for junk in (".DS_Store", "measurements/.DS_Store",
+                 "calibrations/2014-08-12_pq-hydraharp/rho110/._Split_rho110-0000.ht3"):
+        (record / junk).write_bytes(b"finder")
+    rec = scan(record)
+    assert all(i.status == "approved" for i in rec.items)
+    assert "(unassigned files)" not in [i.id for i in rec.items]
+    import zipfile
+
+    names = zipfile.ZipFile(build_package(rec, tmp_path / "zips")).namelist()
+    assert not [n for n in names if ".DS_Store" in n or "/._" in n]

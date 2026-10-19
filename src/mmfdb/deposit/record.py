@@ -43,6 +43,25 @@ ROLES = ("measurement", "calibration", "metadata", "other")
 METADATA_FILES = ("README.md", "metadata.cif", "origins.json", "manifest_sha256.csv")
 
 
+#: Files an operating system leaves in folders it shows (Finder, Explorer,
+#: Spotlight). Browsing a record to check it must not change what is
+#: reviewed or shipped, so these are neither scanned nor packed.
+OS_CLUTTER = frozenset({".DS_Store", "Thumbs.db", "desktop.ini", ".localized", "Icon\r"})
+OS_CLUTTER_DIRS = frozenset({".Spotlight-V100", ".Trashes", ".fseventsd", ".TemporaryItems",
+                             "__MACOSX"})
+
+
+def is_clutter(path: Path) -> bool:
+    """Whether *path* is operating-system clutter rather than record content."""
+    return (path.name in OS_CLUTTER or path.name.startswith("._")
+            or any(part in OS_CLUTTER_DIRS for part in path.parts))
+
+
+def content_files(base: Path) -> list[Path]:
+    """Every file under *base* that is record content, sorted."""
+    return sorted(p for p in base.rglob("*") if p.is_file() and not is_clutter(p))
+
+
 def _now() -> str:
     return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat()
 
@@ -271,19 +290,18 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
     units: list[tuple[str, str, str, list[Path]]] = []
     for m in _folder_items(folder, "measurements"):
         if m.is_dir():
-            units.append((f"measurements/{m.name}", "measurement", "",
-                          [p for p in m.rglob("*") if p.is_file()]))
+            units.append((f"measurements/{m.name}", "measurement", "", content_files(m)))
     for g in _folder_items(folder, "calibrations"):
         for c in sorted(g.iterdir()) if g.is_dir() else []:
             if c.is_dir():
                 units.append((f"calibrations/{g.name}/{c.name}", "calibration", g.name,
-                              [p for p in c.rglob("*") if p.is_file()]))
+                              content_files(c)))
     for name in METADATA_FILES:
         p = folder / name
         if p.is_file():
             units.append((name, "metadata", "", [p]))
     covered = {p for *_, files in units for p in files}
-    stray = sorted(p for p in folder.rglob("*") if p.is_file() and p not in covered)
+    stray = [p for p in content_files(folder) if p not in covered]
     items = []
     for item_id, role, group, files in units:
         it = old.get(item_id) or Item(id=item_id, role=role, group=group)

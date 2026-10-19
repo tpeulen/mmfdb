@@ -6,7 +6,7 @@ import hashlib
 import zipfile
 from pathlib import Path
 
-from .record import DepositRecord, _now, items_digest
+from .record import DepositRecord, _now, content_files, items_digest
 
 
 def build_package(rec: DepositRecord, out_dir: str | Path) -> Path:
@@ -23,7 +23,7 @@ def build_package(rec: DepositRecord, out_dir: str | Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / f"{rec.name}.zip"
     tmp = target.with_suffix(".zip.tmp")
-    files = sorted(p for p in rec.folder.rglob("*") if p.is_file())
+    files = content_files(rec.folder)
     with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as z:
         for p in files:
             z.write(p, f"{rec.name}/{p.relative_to(rec.folder).as_posix()}")
