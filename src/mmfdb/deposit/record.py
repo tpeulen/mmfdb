@@ -121,6 +121,9 @@ class Item:
     bytes: int = 0
     digest: str = ""
     flags: list[str] = field(default_factory=list)
+    #: What a machine check found wrong (e.g. dictionary conformance). Unlike a
+    #: flag, an error blocks the upload whatever the review says.
+    errors: list[str] = field(default_factory=list)
     review: Review = field(default_factory=Review)
 
     @property
@@ -134,7 +137,7 @@ class Item:
         return {"id": self.id, "role": self.role, "group": self.group,
                 "description": self.description, "origin": self.origin, "files": self.files,
                 "bytes": self.bytes, "digest": self.digest, "flags": list(self.flags),
-                "review": self.review.to_dict()}
+                "errors": list(self.errors), "review": self.review.to_dict()}
 
     @classmethod
     def from_dict(cls, d: dict) -> Item:
@@ -142,7 +145,7 @@ class Item:
                    description=d.get("description", ""), origin=d.get("origin", ""),
                    files=int(d.get("files", 0)), bytes=int(d.get("bytes", 0)),
                    digest=d.get("digest", ""), flags=list(d.get("flags", [])),
-                   review=Review.from_dict(d.get("review")))
+                   errors=list(d.get("errors", [])), review=Review.from_dict(d.get("review")))
 
 
 @dataclass
@@ -325,11 +328,23 @@ def scan(folder: str | Path, describe: Callable[[str], dict] | None = None,
         it.description = ", ".join(p.relative_to(folder).as_posix() for p in stray[:5])
         it.flags = ["files outside measurements/, calibrations/ and the metadata files"]
         items.append(it)
+    for it in items:
+        it.errors = check_item(folder, it)
     for gone in set(old) - {i.id for i in items}:
         rec._note("item removed", item=gone)
     rec.items = items
     rec._note("scan", items=len(items))
     return rec
+
+
+def check_item(folder: Path, item: Item) -> list[str]:
+    """Machine checks of one item: ``metadata.cif`` must conform to the dictionaries."""
+    if item.id != "metadata.cif":
+        return []
+    from mmfdb.schema.cif_validate import validate_cif
+
+    problems = validate_cif((folder / "metadata.cif").read_text(encoding="utf-8"))
+    return [str(p) for p in problems]
 
 
 def blockers(rec: DepositRecord, for_publish: bool = False) -> list[str]:
@@ -343,6 +358,8 @@ def blockers(rec: DepositRecord, for_publish: bool = False) -> list[str]:
     if not rec.items:
         out.append("record has no items (scan it first)")
     for i in rec.items:
+        if i.errors:
+            out.append(f"{i.id}: {len(i.errors)} error(s), e.g. {i.errors[0]}")
         if i.status != "approved":
             stale = i.review.status == "approved"
             out.append(f"{i.id}: {'changed since approval' if stale else i.status}")

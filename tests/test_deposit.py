@@ -221,3 +221,13 @@ def test_browsing_the_record_in_a_file_manager_changes_nothing(record: Path, tmp
 
     names = zipfile.ZipFile(build_package(rec, tmp_path / "zips")).namelist()
     assert not [n for n in names if ".DS_Store" in n or "/._" in n]
+
+
+def test_a_nonconformant_metadata_cif_blocks_even_when_approved(record: Path, tmp_path: Path):
+    (record / "metadata.cif").write_text("data_x\n_flr_instrument.id one\n")
+    rec = scan(record)
+    _approve_all(rec)
+    build_package(rec, tmp_path / "zips")
+    errs = rec.item("metadata.cif").errors
+    assert errs and "type" in errs[0]
+    assert any("metadata.cif" in b and "error" in b for b in blockers(rec))
